@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AI Polish Tutor</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 1.3rem; }
+  #micRow { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+  #micSelect { flex: 1; padding: 6px; }
+  #refreshMicsBtn { padding: 6px 10px; cursor: pointer; }
+  #talkBtn {
+    width: 100%; padding: 28px; font-size: 1.2rem; border-radius: 12px; border: none;
+    background: #2563eb; color: white; cursor: pointer; user-select: none;
+  }
+  #talkBtn.recording { background: #dc2626; }
+  #status { margin: 12px 0; color: #555; min-height: 1.2em; }
+  #error { color: #b91c1c; white-space: pre-wrap; }
+  .transcript { margin-top: 20px; }
+  .transcript h3 { margin-bottom: 4px; font-size: 0.9rem; color: #888; text-transform: uppercase; }
+  .transcript .line { padding: 6px 10px; margin-bottom: 4px; border-radius: 6px; background: #f3f4f6; }
+  .you .line { background: #eef2ff; }
+  .you h3 { margin-top: 4px; }
+  .you .caveat { font-size: 0.75rem; color: #999; font-weight: normal; text-transform: none; }
+</style>
+</head>
+<body>
+  <h1>AI Polish Tutor (MVP)</h1>
+
+  <div id="micRow">
+    <select id="micSelect"><option value="">Default microphone</option></select>
+    <button id="refreshMicsBtn" type="button">Refresh mics</button>
+  </div>
+
+  <button id="talkBtn">Hold to speak</button>
+  <div id="status">Not connected.</div>
+  <div id="error"></div>
+
+  <div class="transcript you">
+    <h3>You said <span class="caveat">(approximate - trust the tutor's reply over this)</span></h3>
+    <div id="youLines"></div>
+  </div>
+  <div class="transcript tutor">
+    <h3>Tutor said</h3>
+    <div id="tutorLines"></div>
+  </div>
+
+<script>
+const talkBtn = document.getElementById('talkBtn');
+const statusEl = document.getElementById('status');
+const errorEl = document.getElementById('error');
+const youLines = document.getElementById('youLines');
+const tutorLines = document.getElementById('tutorLines');
+const micSelect = document.getElementById('micSelect');
+const refreshMicsBtn = document.getElementById('refreshMicsBtn');
+
+let ws = null;
+let micContext = null;
+let micStream = null;
+let workletNode = null;
+let playbackContext = null;
+let nextPlaybackTime = 0;
+
+const CHUNK_SAMPLES = 640; // ~40ms at 16kHz - Google's recommended 20-40ms range for latency
+let pcmBuffer = [];
+let pcmBufferedSamples = 0;
+
+function setStatus(text) { statusEl.textContent = text; }
+function showError(text) { errorEl.textContent = text; }
+function addLine(container, text) {
+  const div = document.createElement('div');
+  div.className = 'line';
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollIntoView({ block: 'end' });
+}
+
+// --- Microphone selection ---
+
+async function loadMics() {
+  try {
+    // Device labels are only populated once permission has been granted at
+    // least once - request it here (briefly) just to unlock the labels.
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tempStream.getTracks().forEach((t) => t.stop());
+  } catch (e) {
+    showError('Microphone permission was denied - allow it in the browser/app to pick a device.');
+    return;
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const mics = devices.filter((d) => d.kind === 'audioinput');
+
+  const previouslySelected = micSelect.value;
+  micSelect.innerHTML = '<option value="">Default microphone</option>';
+  mics.forEach((d, i) => {
+    const opt = document.createElement('option');
+    opt.value = d.deviceId;
+    opt.textContent = d.label || `Microphone ${i + 1}`;
+    micSelect.appendChild(opt);
+  });
+  if (mics.some((d) => d.deviceId === previouslySelected)) {
+    micSelect.value = previouslySelected;
+  }
+}
+
+refreshMicsBtn.addEventListener('click', loadMics);
+
+// --- WebSocket ---
+
+function connectWebSocket() {
+  ws = new WebSocket(`ws://${location.host}/ws/session`);
+
+  ws.onopen = () => setStatus('Connected. Hold the button and speak.');
+  ws.onclose = () => setStatus('Disconnected. Reload the page to reconnect.');
+  ws.onerror = () => showError('WebSocket error - check the server terminal.');
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'audio') {
+      playAudioChunk(msg.data);
+    } else if (msg.type === 'transcript_in') {
+      addLine(youLines, msg.text);
+    } else if (msg.type === 'transcript_out') {
+      addLine(tutorLines, msg.text);
+    } else if (msg.type === 'turn_complete') {
+      setStatus('Tutor finished. Hold the button and speak again.');
+    } else if (msg.type === 'error') {
+      showError('Server error: ' + msg.message);
+    }
+  };
+}
+
+function base64ToInt16(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Int16Array(bytes.buffer);
+}
+
+function playAudioChunk(b64data) {
+  if (!playbackContext) {
+    playbackContext = new AudioContext({ sampleRate: 24000 });
+    nextPlaybackTime = playbackContext.currentTime;
+  }
+  const int16 = base64ToInt16(b64data);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+  const buffer = playbackContext.createBuffer(1, float32.length, 24000);
+  buffer.copyToChannel(float32, 0);
+
+  const source = playbackContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(playbackContext.destination);
+
+  const startAt = Math.max(nextPlaybackTime, playbackContext.currentTime);
+  source.start(startAt);
+  nextPlaybackTime = startAt + buffer.duration;
+}
+
+function float32ToInt16Base64(float32Array) {
+  const int16 = new Int16Array(float32Array.length);
+  for (let i = 0; i < float32Array.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32Array[i]));
+    int16[i] = s < 0 ? s * 32768 : s * 32767;
+  }
+  const bytes = new Uint8Array(int16.buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function flushPcmBuffer(force) {
+  while (pcmBufferedSamples >= CHUNK_SAMPLES || (force && pcmBufferedSamples > 0)) {
+    const combined = new Float32Array(pcmBufferedSamples);
+    let offset = 0;
+    for (const chunk of pcmBuffer) { combined.set(chunk, offset); offset += chunk.length; }
+
+    const takeCount = force ? pcmBufferedSamples : CHUNK_SAMPLES;
+    const toSend = combined.slice(0, takeCount);
+    const remainder = combined.slice(takeCount);
+
+    ws.send(JSON.stringify({ type: 'audio_chunk', data: float32ToInt16Base64(toSend) }));
+
+    pcmBuffer = remainder.length ? [remainder] : [];
+    pcmBufferedSamples = remainder.length;
+    if (force) break;
+  }
+}
+
+async function startRecording() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { showError('Not connected yet.'); return; }
+  showError('');
+  ws.send(JSON.stringify({ type: 'start_turn' }));
+
+  micContext = new AudioContext({ sampleRate: 16000 });
+
+  const constraints = micSelect.value
+    ? { audio: { deviceId: { exact: micSelect.value } } }
+    : { audio: true };
+  micStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+  await micContext.audioWorklet.addModule('/pcm-processor.js');
+
+  const source = micContext.createMediaStreamSource(micStream);
+  workletNode = new AudioWorkletNode(micContext, 'pcm-capture-processor');
+
+  pcmBuffer = [];
+  pcmBufferedSamples = 0;
+
+  workletNode.port.onmessage = (event) => {
+    pcmBuffer.push(event.data);
+    pcmBufferedSamples += event.data.length;
+    flushPcmBuffer(false);
+  };
+
+  source.connect(workletNode);
+  setStatus('Recording... speak now.');
+}
+
+function stopRecording() {
+  if (!micStream) return;
+  flushPcmBuffer(true);
+  micStream.getTracks().forEach((t) => t.stop());
+  workletNode && workletNode.disconnect();
+  micContext && micContext.close();
+  micStream = null;
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'turn_complete' }));
+  }
+  setStatus('Waiting for tutor reply...');
+}
+
+talkBtn.addEventListener('mousedown', startRecording);
+talkBtn.addEventListener('mouseup', stopRecording);
+talkBtn.addEventListener('mouseleave', () => { if (micStream) stopRecording(); });
+talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+talkBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+talkBtn.addEventListener('mousedown', () => talkBtn.classList.add('recording'));
+talkBtn.addEventListener('mouseup', () => talkBtn.classList.remove('recording'));
+
+connectWebSocket();
+loadMics();
+</script>
+</body>
+</html>
