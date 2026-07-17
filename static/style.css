@@ -1,0 +1,570 @@
+/* AI Language Tutor / LanguLearn - design tokens
+   Deep ink-navy + warm off-white + one muted crimson accent (quiet nod to
+   Polish, not literal flag colors). Space Grotesk for headers/UI labels,
+   Inter for transcript body text. */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #141821;
+  --panel: #1b212c;
+  --panel-raised: #222a37;
+  --border: #2a3140;
+  --text: #ede9e3;
+  --text-muted: #8b93a3;
+  --accent: #c1403d;
+  --accent-hover: #d64f4c;
+  --accent-soft: rgba(193, 64, 61, 0.16);
+  --ok: #7fa98e;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+#app {
+  display: grid;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+  width: 100%;
+}
+
+/* --- Top bar --- */
+
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+#appTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#connectionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s ease;
+}
+#connectionDot.connected { background: var(--ok); }
+#connectionDot.error { background: var(--accent); }
+
+#profileControl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#currentProfileName {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.pill-btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.pill-btn:hover { border-color: var(--accent); }
+
+/* --- Layout body --- */
+
+#body {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 0;
+  width: 100%;
+}
+
+#sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 24px;
+}
+
+.sidebar-section h3 {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 10px 0 4px;
+}
+.field-label:first-of-type { margin-top: 0; }
+
+.text-input {
+  width: 100%;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+.text-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.field-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+select {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.icon-btn {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+.field-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* --- Main conversation area --- */
+
+#main {
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  min-height: 0;
+}
+
+#transcriptArea {
+  overflow-y: auto;
+  padding: 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  max-width: 65%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.bubble.mine {
+  align-self: flex-end;
+  background: var(--accent-soft);
+  border: 1px solid rgba(193, 64, 61, 0.35);
+  border-bottom-right-radius: 4px;
+}
+.bubble.mine.pending {
+  opacity: 0.6;
+  font-style: italic;
+}
+.bubble.tutor {
+  align-self: flex-start;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+.bubble .speaker-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+#emptyState {
+  margin: auto;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 320px;
+}
+
+/* --- Waveform --- */
+
+#waveformWrap {
+  padding: 4px 40px 0;
+}
+#waveform {
+  width: 100%;
+  height: 56px;
+  display: block;
+}
+
+/* --- Talk button (signature element) --- */
+
+#talkArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 0 32px;
+}
+
+#talkBtn {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: breathe 3.2s ease-in-out infinite;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+#talkBtn:hover { background: var(--accent-hover); }
+#talkBtn:active { transform: scale(0.96); }
+#talkBtn.recording {
+  animation: none;
+  box-shadow: 0 0 0 0 rgba(193, 64, 61, 0.5);
+  animation: pulse-ring 1.1s ease-out infinite;
+}
+#talkBtn svg { width: 30px; height: 30px; fill: #fff; }
+
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 64, 61, 0.25); }
+  50% { box-shadow: 0 0 0 10px rgba(193, 64, 61, 0); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(193, 64, 61, 0.55); }
+  100% { box-shadow: 0 0 0 22px rgba(193, 64, 61, 0); }
+}
+
+#talkHint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+#errorBanner {
+  display: none;
+  margin: 0 40px 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(193, 64, 61, 0.12);
+  border: 1px solid rgba(193, 64, 61, 0.4);
+  color: #f0b4b2;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+}
+#errorBanner.visible { display: block; }
+
+/* --- Profile modal --- */
+
+#profileModalOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.6);
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#profileModalOverlay.visible { display: flex; }
+
+#profileModal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  width: 320px;
+  max-width: 90vw;
+}
+#profileModal h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+#profileModal p.sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0 0 18px;
+}
+
+.profile-option {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px 0 0 8px;
+  border: 1px solid var(--border);
+  border-right: none;
+  background: var(--panel-raised);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.profile-option:hover { border-color: var(--accent); }
+
+.profile-row {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.profile-delete-btn {
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: 0 8px 8px 0;
+  border: 1px solid var(--border);
+  border-left: none;
+  background: var(--panel-raised);
+  color: #e53e3e;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.profile-delete-btn:hover { background: #e53e3e; color: #fff; }
+
+/* --- Conversations list (sidebar) --- */
+
+.conv-row {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.conv-option {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px 0 0 8px;
+  border: 1px solid var(--border);
+  border-right: none;
+  background: var(--panel-raised);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.83rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.conv-option:hover { border-color: var(--accent); }
+.conv-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.conv-rename-btn, .conv-delete-btn {
+  flex: 0 0 30px;
+  border: 1px solid var(--border);
+  border-left: none;
+  background: var(--panel-raised);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.conv-rename-btn:hover { color: var(--text); }
+.conv-delete-btn {
+  border-radius: 0 8px 8px 0;
+  color: #e53e3e;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.conv-delete-btn:hover { background: #e53e3e; color: #fff; }
+
+.modal-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+#newProfileRow {
+  display: flex;
+  gap: 8px;
+}
+#newProfileName {
+  flex: 1;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.primary-btn:hover { background: var(--accent-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  #talkBtn, #talkBtn.recording { animation: none; }
+}
+
+/* --- Session status indicator (topbar, next to connection dot) --- */
+
+.session-status {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.session-status.visible { opacity: 1; }
+
+/* --- Notes modal (vocab/mistakes + lesson log) --- */
+
+#notesModalOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.6);
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#notesModalOverlay.visible { display: flex; }
+
+#notesModal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+#notesModal h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+#notesModal p.sub {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0 0 18px;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.notes-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.notes-item {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.notes-item .notes-item-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text);
+}
+.notes-item .notes-item-meta {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}

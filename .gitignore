@@ -20,5 +20,7 @@ venv/
 Thumbs.db
 
 # Personal
-01-mvp-build-plan.md
-02-git-workflow.md
+git-workflow.md
+data/
+design_plans/
+issues.md

@@ -6,3 +6,6 @@ websockets
 sounddevice
 numpy
 pywebview
+faster-whisper
+protobuf<7.0.0,>=4.25.8
+googleapis-common-protos>=1.5.5
