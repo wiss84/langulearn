@@ -1,0 +1,47 @@
+/* --- Landing page: centered profile-setup card ---
+   #landingWrap is a flex child of the shared #pageBody (see base.css),
+   which already sizes it to fill the viewport below the top bar - no
+   min-height/100vh needed here. */
+
+#landingWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+#landingCard {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  width: 380px;
+  max-width: 92vw;
+}
+
+#landingTitle {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 6px;
+}
+
+#landingSubtitle {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 28px;
+  line-height: 1.4;
+}
+
+#landingForm .field-label:first-of-type {
+  margin-top: 0;
+}
+
+#nextBtn:disabled {
+  background: var(--panel-raised);
+  color: var(--text-muted);
+  cursor: default;
+}

@@ -1,0 +1,89 @@
+/* --- Top bar --- */
+
+#topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+#topbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#appTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#connectionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s ease;
+}
+#connectionDot.connected { background: var(--ok); }
+#connectionDot.error { background: var(--accent); }
+
+#profileControl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#themeToggleBtn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
+#currentProfileName {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.pill-btn {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.pill-btn:hover { border-color: var(--accent); }
+
+/* --- Session status indicator (topbar, next to connection dot) --- */
+
+.session-status {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.session-status.visible { opacity: 1; }

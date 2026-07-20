@@ -45,17 +45,22 @@ if __name__ == "__main__":
 
     webview.create_window(
         "LanguLearn",
-        # A cache-busting query string forces a fresh fetch of "/" on every
-        # launch, regardless of anything already sitting in the persistent
-        # WebView2 profile's cache (see the private_mode=False note above -
-        # that persistence is what let a stale index.html get served with
-        # no request even reaching the server, silently missing whatever
+        # A cache-busting query string forces a fresh fetch on every launch,
+        # regardless of anything already sitting in the persistent WebView2
+        # profile's cache (see the private_mode=False note above - that
+        # persistence is what let a stale index.html get served with no
+        # request even reaching the server, silently missing whatever
         # markup was added since). The server's own no-cache headers (see
         # main.py's _disable_static_caching middleware) stop this from
         # recurring going forward, but that only prevents *future* caching -
         # it doesn't invalidate anything already cached before that
         # middleware existed, which is what this query string is for.
-        f"http://{HOST}:{PORT}/?v={int(time.time())}",
+        #
+        # Points at /profiles rather than "/" (the learning page) - every
+        # app launch should land on the profile picker, like a Netflix
+        # "who's watching" screen, rather than silently resuming whatever
+        # profile happened to be active last time.
+        f"http://{HOST}:{PORT}/profiles?v={int(time.time())}",
         width=1200,
         height=820,
         min_size=(900, 650),

@@ -1,0 +1,39 @@
+<aside id="sidebar">
+  <div class="sidebar-section">
+    <h3>Gemini API key</h3>
+    <div class="field-row">
+      <input id="apiKeyInput" type="password" class="text-input" placeholder="Paste your Gemini API key" autocomplete="off" />
+      <button id="toggleApiKeyBtn" class="icon-btn" type="button" title="Show/hide API key">👁️</button>
+    </div>
+    <p class="field-hint">Free from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Stored per profile - required to connect.</p>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Languages</h3>
+    <label class="field-label" for="nativeLanguageInput">You speak</label>
+    <input id="nativeLanguageInput" type="text" class="text-input" placeholder="English" />
+    <label class="field-label" for="targetLanguageInput">You're learning</label>
+    <input id="targetLanguageInput" type="text" class="text-input" placeholder="Polish" />
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Tutor voice</h3>
+    <div class="field-row">
+      <select id="genderSelect">
+        <option value="Female">Female</option>
+        <option value="Male">Male</option>
+      </select>
+    </div>
+    <div class="field-row" style="margin-top: 8px;">
+      <select id="voiceSelect"></select>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>Model</h3>
+    <div class="field-row">
+      <select id="modelSelect"></select>
+    </div>
+    <p class="field-hint" id="modelHint"></p>
+  </div>
+</aside>

@@ -1,0 +1,56 @@
+/* --- Conversations list (sidebar) --- */
+
+.conv-row {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.conv-option {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px 0 0 8px;
+  border: 1px solid var(--border);
+  border-right: none;
+  background: var(--panel-raised);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.83rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.conv-option:hover { border-color: var(--accent); }
+.conv-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.conv-rename-btn, .conv-delete-btn, .conv-notes-btn {
+  flex: 0 0 30px;
+  border: 1px solid var(--border);
+  border-left: none;
+  background: var(--panel-raised);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.conv-rename-btn:hover, .conv-notes-btn:hover { color: var(--text); }
+.conv-delete-btn {
+  border-radius: 0 8px 8px 0;
+  color: #e53e3e;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.conv-delete-btn:hover { background: #e53e3e; color: #fff; }

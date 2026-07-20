@@ -1,0 +1,173 @@
+/* --- Avatar drawer (learning page, toggled via the camera button in the
+   top bar) --- */
+
+#avatarDrawer {
+  width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  transition: width 0.25s ease;
+}
+#avatarDrawer.open {
+  width: 340px;
+}
+
+#avatarDrawerFrame {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  margin: 20px auto 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+}
+#avatarDrawerPreview {
+  width: 100%;
+  height: 100%;
+}
+#avatarDrawerHint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0 16px;
+}
+
+/* A true sibling of #avatarDrawer/#main (not nested inside the drawer) -
+   deliberately, since a child can never visually paint above a SIBLING's
+   higher stacking context no matter what z-index the child declares. The
+   drawer's own z-index (30, set below, only in fullscreen) sits under
+   #main's (40), so a maximize/minimize button nested inside the drawer
+   would become permanently unclickable the moment fullscreen starts -
+   this bit us once already. Fixed position works identically whether the
+   drawer is at its normal 340px width or fullscreen-width, since either
+   way its right/bottom edges are flush with the viewport's.
+   Visibility (show only while the drawer is open) is toggled directly in
+   avatarDrawer.js rather than via CSS, to keep it exactly in sync with
+   the same state that drives everything else about the drawer. */
+#avatarMaximizeBtn {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  display: none;
+  background: rgba(20, 24, 33, 0.55);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+#avatarMaximizeBtn:hover {
+  background: rgba(20, 24, 33, 0.75);
+  border-color: #fff;
+  color: #fff;
+}
+
+/* --- Fullscreen avatar mode ---
+   The avatar drawer becomes a fixed layer covering the whole content area
+   (below the top bar). The transcript/talk button aren't moved in the DOM
+   - they're repositioned via fixed + a higher z-index so they render as a
+   Teams-style caption overlay on top of the avatar: a small, bounded,
+   scrollable box (not the full transcript filling the screen), borderless
+   and transparent by default, revealing a border + visible scrollbar on
+   hover. */
+
+#body.avatar-fullscreen {
+  position: relative;
+}
+
+#body.avatar-fullscreen #avatarDrawer {
+  position: fixed;
+  inset: 56px 0 0 0;
+  width: auto;
+  z-index: 30;
+  border-left: none;
+  transition: none;
+}
+#body.avatar-fullscreen #avatarDrawerFrame {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+}
+
+#body.avatar-fullscreen #main {
+  position: fixed;
+  inset: 56px 0 0 0;
+  z-index: 40;
+  background: transparent;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding-bottom: 24px;
+}
+
+/* The caption box itself - capped height (~4 lines), scrollable, and the
+   only part of the fullscreen overlay that needs pointer-events (to
+   hover/scroll it) besides the talk button. */
+#body.avatar-fullscreen #transcriptArea {
+  pointer-events: auto;
+  width: min(640px, 82%);
+  max-height: 132px;
+  flex: none;
+  overflow-y: auto;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+#body.avatar-fullscreen #transcriptArea:hover {
+  background: rgba(10, 12, 16, 0.45);
+  border-color: rgba(255, 255, 255, 0.15);
+  scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+}
+#body.avatar-fullscreen #transcriptArea::-webkit-scrollbar {
+  width: 6px;
+}
+#body.avatar-fullscreen #transcriptArea::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+#body.avatar-fullscreen #transcriptArea:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+#body.avatar-fullscreen .bubble {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+  max-width: 100%;
+}
+#body.avatar-fullscreen .bubble .speaker-label {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.85);
+}
+#body.avatar-fullscreen #emptyState,
+#body.avatar-fullscreen #waveformWrap {
+  display: none;
+}
+#body.avatar-fullscreen #errorBanner {
+  pointer-events: auto;
+  width: min(640px, 82%);
+  margin: 0;
+  background: rgba(193, 64, 61, 0.35);
+  backdrop-filter: blur(4px);
+}
+#body.avatar-fullscreen #talkArea {
+  pointer-events: auto;
+  padding: 0;
+}
+#body.avatar-fullscreen #talkHint {
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}

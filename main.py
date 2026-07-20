@@ -57,14 +57,23 @@ Then open:
 import asyncio
 import base64
 import json
-import os
 import traceback
 import uuid
 from pathlib import Path
 
+import mimetypes
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+# StaticFiles doesn't know the .mjs extension, so it serves ES modules as
+# text/plain - which browsers refuse to execute (the "disallowed MIME type"
+# error). On some systems mimetypes also mis-resolves .js to application/json,
+# so force both to JavaScript.
+mimetypes.add_type("text/javascript", ".mjs")
+mimetypes.add_type("text/javascript", ".js")
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
 
@@ -72,8 +81,6 @@ import memory
 import retry
 
 load_dotenv()
-
-API_KEY = os.environ["GEMINI_API_KEY"]
 
 # System instruction template. {name}/{native_language}/{target_language}
 # are filled in per conversation, so the same wording works for any language
@@ -119,38 +126,39 @@ SUMMARY_MODEL = "gemini-3.1-flash-lite"
 # (ai.google.dev/gemini-api/docs/speech-generation), which label voices by
 # tone/character. Gender is not an official Google label - this mapping is
 # a manual categorization for the UI's gender-first picker, not a claim
-# Google makes.
+# Google makes. pitch is a supplementary manual categorization (same
+# spirit as gender), shown alongside descriptor on the avatar-select page.
 VOICE_OPTIONS = [
-    {"name": "Zephyr", "descriptor": "Bright", "gender": "Female"},
-    {"name": "Puck", "descriptor": "Upbeat", "gender": "Male"},
-    {"name": "Charon", "descriptor": "Informative", "gender": "Male"},
-    {"name": "Kore", "descriptor": "Firm", "gender": "Female"},
-    {"name": "Fenrir", "descriptor": "Excitable", "gender": "Male"},
-    {"name": "Leda", "descriptor": "Youthful", "gender": "Female"},
-    {"name": "Orus", "descriptor": "Firm", "gender": "Male"},
-    {"name": "Aoede", "descriptor": "Breezy", "gender": "Female"},
-    {"name": "Callirrhoe", "descriptor": "Easy-going", "gender": "Female"},
-    {"name": "Autonoe", "descriptor": "Bright", "gender": "Female"},
-    {"name": "Enceladus", "descriptor": "Breathy", "gender": "Male"},
-    {"name": "Iapetus", "descriptor": "Clear", "gender": "Male"},
-    {"name": "Umbriel", "descriptor": "Easy-going", "gender": "Male"},
-    {"name": "Algieba", "descriptor": "Smooth", "gender": "Female"},
-    {"name": "Despina", "descriptor": "Smooth", "gender": "Female"},
-    {"name": "Erinome", "descriptor": "Clear", "gender": "Female"},
-    {"name": "Algenib", "descriptor": "Gravelly", "gender": "Male"},
-    {"name": "Rasalgethi", "descriptor": "Informative", "gender": "Male"},
-    {"name": "Laomedeia", "descriptor": "Upbeat", "gender": "Female"},
-    {"name": "Achernar", "descriptor": "Soft", "gender": "Female"},
-    {"name": "Alnilam", "descriptor": "Firm", "gender": "Male"},
-    {"name": "Schedar", "descriptor": "Even", "gender": "Male"},
-    {"name": "Gacrux", "descriptor": "Mature", "gender": "Female"},
-    {"name": "Pulcherrima", "descriptor": "Forward", "gender": "Female"},
-    {"name": "Achird", "descriptor": "Friendly", "gender": "Male"},
-    {"name": "Zubenelgenubi", "descriptor": "Casual", "gender": "Male"},
-    {"name": "Vindemiatrix", "descriptor": "Gentle", "gender": "Female"},
-    {"name": "Sadachbia", "descriptor": "Lively", "gender": "Male"},
-    {"name": "Sadaltager", "descriptor": "Knowledgeable", "gender": "Male"},
-    {"name": "Sulafat", "descriptor": "Warm", "gender": "Female"},
+    {"name": "Zephyr", "descriptor": "Bright", "gender": "Female", "pitch": "Mid-range"},
+    {"name": "Puck", "descriptor": "Upbeat", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Charon", "descriptor": "Informative", "gender": "Male", "pitch": "Mid-to-low"},
+    {"name": "Kore", "descriptor": "Firm", "gender": "Female", "pitch": "Mid-to-high"},
+    {"name": "Fenrir", "descriptor": "Excitable", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Leda", "descriptor": "Youthful", "gender": "Female", "pitch": "High"},
+    {"name": "Orus", "descriptor": "Firm", "gender": "Male", "pitch": "Mid-to-low"},
+    {"name": "Aoede", "descriptor": "Breezy", "gender": "Female", "pitch": "Mid-range"},
+    {"name": "Callirrhoe", "descriptor": "Easy-going", "gender": "Female", "pitch": "Mid-to-high"},
+    {"name": "Autonoe", "descriptor": "Bright", "gender": "Female", "pitch": "High"},
+    {"name": "Enceladus", "descriptor": "Breathy", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Iapetus", "descriptor": "Clear", "gender": "Male", "pitch": "Mid-to-low"},
+    {"name": "Umbriel", "descriptor": "Easy-going", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Algieba", "descriptor": "Smooth", "gender": "Female", "pitch": "Mid-to-low"},
+    {"name": "Despina", "descriptor": "Smooth", "gender": "Female", "pitch": "Mid-range"},
+    {"name": "Erinome", "descriptor": "Clear", "gender": "Female", "pitch": "Mid-to-high"},
+    {"name": "Algenib", "descriptor": "Gravelly", "gender": "Male", "pitch": "Low"},
+    {"name": "Rasalgethi", "descriptor": "Informative", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Laomedeia", "descriptor": "Upbeat", "gender": "Female", "pitch": "Mid-range"},
+    {"name": "Achernar", "descriptor": "Soft", "gender": "Female", "pitch": "Mid-range"},
+    {"name": "Alnilam", "descriptor": "Firm", "gender": "Male", "pitch": "Mid-to-low"},
+    {"name": "Schedar", "descriptor": "Even", "gender": "Male", "pitch": "Mid-to-low"},
+    {"name": "Gacrux", "descriptor": "Mature", "gender": "Female", "pitch": "Mid-to-low"},
+    {"name": "Pulcherrima", "descriptor": "Forward", "gender": "Female", "pitch": "High"},
+    {"name": "Achird", "descriptor": "Friendly", "gender": "Male", "pitch": "Mid-to-high"},
+    {"name": "Zubenelgenubi", "descriptor": "Casual", "gender": "Male", "pitch": "Low"},
+    {"name": "Vindemiatrix", "descriptor": "Gentle", "gender": "Female", "pitch": "Low"},
+    {"name": "Sadachbia", "descriptor": "Lively", "gender": "Male", "pitch": "Low"},
+    {"name": "Sadaltager", "descriptor": "Knowledgeable", "gender": "Male", "pitch": "Mid-range"},
+    {"name": "Sulafat", "descriptor": "Warm", "gender": "Female", "pitch": "Mid-to-high"},
 ]
 
 # Live API model choices. Rate limits are what's visible on the free tier as
@@ -177,15 +185,15 @@ DATA_DIR = Path(__file__).parent / "data"
 PROFILES_FILE = DATA_DIR / "profiles.json"
 
 # voice_name/native_language/target_language/model_name remain here only as
-# the seed values used when a profile's very first conversation is created -
-# once conversations exist, each conversation carries its own copy of these
-# and is the source of truth (see memory.py). resumption_handle/
-# resumption_config are legacy fields, read once by ensure_active_conversation
-# to migrate an old single-session profile into its first conversation.
+# legacy seed fields from before every conversation was created explicitly
+# via /avatar-select - no longer read by anything (see get_active_conversation,
+# which no longer auto-creates a conversation from them). resumption_handle/
+# resumption_config are similarly unused legacy fields. Kept on new profiles
+# only for schema consistency with old data; safe to remove entirely later.
 PROFILE_EDITABLE_FIELDS = (
     "mic_device_id", "mic_label", "voice_name", "voice_gender",
     "name", "native_language", "target_language", "model_name",
-    "active_conversation_id",
+    "active_conversation_id", "api_key",
 )
 
 # Live API connect retries. Classification (is_transient_error) and
@@ -237,9 +245,29 @@ def delete_profile(profile_id: str) -> bool:
     return False
 
 
+def get_client_for_key(api_key: str | None) -> genai.Client:
+    """Builds a Gemini client from a profile's own API key. Each profile
+    carries its own key (see PROFILE_EDITABLE_FIELDS) - there's no shared
+    or .env fallback, so a profile without one simply can't open a session
+    or run summarization; callers should catch ValueError and surface it.
+    """
+    api_key = (api_key or "").strip()
+    if not api_key:
+        raise ValueError("No Gemini API key is set for this profile.")
+    return genai.Client(api_key=api_key)
+
+
 memory.init_db()
-client = genai.Client(api_key=API_KEY)
 app = FastAPI()
+
+# Frontend is composed via Jinja2 from static/UI (index.html layout +
+# pages/ + styles/ + scripts/) instead of one flat index.html/app.js/
+# style.css, so pages/styles/scripts stay short and descriptively named
+# rather than growing into large monolithic files. Static assets under
+# static/UI/styles and static/UI/scripts, plus vendor/, avatar/, and
+# voices/, are still served as plain files by the StaticFiles mount at the
+# bottom of this module - only the page shell itself is server-rendered.
+templates = Jinja2Templates(directory="static/UI")
 
 
 @app.middleware("http")
@@ -265,35 +293,24 @@ async def _disable_static_caching(request: Request, call_next):
     return response
 
 
-def ensure_active_conversation(profile: dict) -> dict:
-    """Returns the profile's active conversation, creating one if the
-    profile has none yet. A brand-new profile just gets a fresh "Default"
-    conversation. An older profile that predates conversations (has a
-    profile-level resumption_handle from before this feature) gets that
-    handle wrapped into its synthetic first conversation, so the
-    in-progress session isn't lost.
+def get_active_conversation(profile: dict) -> dict | None:
+    """Returns the profile's active conversation, or None if it has none
+    yet. No auto-creation - every conversation now comes from an explicit
+    choice on /avatar-select (an avatar/voice and a target language the
+    user picked), so a profile with none just means the user hasn't
+    started a language yet, not something to paper over with a synthetic
+    "Default" conversation.
     """
     profile_id = profile["id"]
     convs = memory.list_conversations(profile_id)
-    if convs:
-        active_id = profile.get("active_conversation_id")
-        match = next((c for c in convs if c["id"] == active_id), None)
-        return match or convs[0]
-
-    config = {
-        "voice_name": profile.get("voice_name") or DEFAULT_VOICE,
-        "native_language": profile.get("native_language") or DEFAULT_NATIVE_LANGUAGE,
-        "target_language": profile.get("target_language") or DEFAULT_TARGET_LANGUAGE,
-        "model_name": profile.get("model_name") or DEFAULT_MODEL,
-    }
-    conv = memory.create_conversation(profile_id, config, name="Default")
-    if profile.get("resumption_handle"):
-        memory.set_resumption(conv["id"], profile["resumption_handle"], profile.get("resumption_config") or config)
-    patch_profile(profile_id, {"active_conversation_id": conv["id"]})
-    return memory.get_conversation(conv["id"])
+    if not convs:
+        return None
+    active_id = profile.get("active_conversation_id")
+    match = next((c for c in convs if c["id"] == active_id), None)
+    return match or convs[0]
 
 
-def summarize_conversation(conversation_id: str, student_name: str) -> None:
+def summarize_conversation(conversation_id: str, student_name: str, api_key: str | None) -> None:
     """Folds turns since the last summary into an updated rolling summary,
     and - from the same call, since it's already looking at the transcript -
     upserts any vocabulary/recurring-mistake terms into vocab_mistakes and
@@ -304,7 +321,15 @@ def summarize_conversation(conversation_id: str, student_name: str) -> None:
     next due summarization attempt (or the final one on disconnect) can
     retry. A malformed/non-JSON model response degrades to "summary only"
     (see the parsing fallback below) rather than losing the summary too.
+    A profile with no API key set just skips this - the raw turns are still
+    safe in SQLite for whenever a key gets added.
     """
+    try:
+        client = get_client_for_key(api_key)
+    except ValueError:
+        print(f"[summarize_conversation] skipped for conversation={conversation_id!r}: no API key set for this profile.")
+        return
+
     try:
         prev = memory.get_summary(conversation_id)
         since_seq = prev["based_on_turn"] if prev else 0
@@ -419,6 +444,33 @@ def build_config(
     return types.LiveConnectConfig(**kwargs)
 
 
+# --- Page routes ---
+
+@app.get("/")
+async def serve_learning_page(request: Request):
+    # Newer Starlette moved `request` to the first positional argument of
+    # TemplateResponse (the old `(name, {"request": request})` calling
+    # convention silently shifts the context dict into the `name` slot
+    # instead, which blows up inside Jinja2's template cache with
+    # "unhashable type: 'dict'" - request must be passed explicitly here).
+    return templates.TemplateResponse(request, "pages/learning.html")
+
+
+@app.get("/landing")
+async def serve_landing_page(request: Request):
+    return templates.TemplateResponse(request, "pages/landing.html")
+
+
+@app.get("/avatar-select")
+async def serve_avatar_select_page(request: Request):
+    return templates.TemplateResponse(request, "pages/avatar_select.html")
+
+
+@app.get("/profiles")
+async def serve_profiles_page(request: Request):
+    return templates.TemplateResponse(request, "pages/profiles.html")
+
+
 # --- Reference data endpoints ---
 
 @app.get("/api/voices")
@@ -429,6 +481,21 @@ def get_voices():
 @app.get("/api/models")
 def get_models():
     return {"models": MODEL_OPTIONS, "default": DEFAULT_MODEL}
+
+
+@app.get("/api/avatars")
+def get_available_avatars():
+    """Which voices currently have a real 3D avatar file, for the
+    avatar-select page to gate which grid tiles are clickable vs
+    "Coming soon" - avatars are being made one at a time (see the .glb
+    files under static/avatar/), so this list grows over time without any
+    code change needed.
+    """
+    avatar_dir = Path("static/avatar")
+    if not avatar_dir.is_dir():
+        return {"available": []}
+    available = sorted(p.name[:-len("_th.glb")] for p in avatar_dir.glob("*_th.glb"))
+    return {"available": available}
 
 
 @app.get("/api/profiles")
@@ -442,10 +509,12 @@ async def create_profile(request: Request):
     name = (payload.get("name") or "").strip()
     if not name:
         raise HTTPException(400, "Name is required")
+    api_key = (payload.get("api_key") or "").strip() or None
 
     profile = {
         "id": str(uuid.uuid4()),
         "name": name,
+        "api_key": api_key,
         "mic_device_id": None,
         "mic_label": None,
         "voice_name": DEFAULT_VOICE,
@@ -497,8 +566,6 @@ def list_conversations_endpoint(profile_id: str):
     profile = get_profile_by_id(profile_id)
     if profile is None:
         raise HTTPException(404, "Profile not found")
-    ensure_active_conversation(profile)  # migrates/creates the first conversation if needed
-    profile = get_profile_by_id(profile_id)
     return {
         "conversations": memory.list_conversations(profile_id),
         "active_conversation_id": profile.get("active_conversation_id"),
@@ -616,7 +683,7 @@ def is_dead_resumption_handle_error(e: Exception) -> bool:
     return "1008" in str(e)
 
 
-async def _connect_live_with_retries(model_name: str, config: types.LiveConnectConfig):
+async def _connect_live_with_retries(client: genai.Client, model_name: str, config: types.LiveConnectConfig):
     """Opens a Live API session, retrying transient connect failures.
 
     Returns (live_cm, live_session, handle_was_dropped): the caller is
@@ -674,7 +741,14 @@ async def ws_session(websocket: WebSocket):
             if conv is not None and conv["profile_id"] != profile_id:
                 conv = None
         if conv is None:
-            conv = ensure_active_conversation(profile)
+            conv = get_active_conversation(profile)
+        if conv is None:
+            await websocket.send_json({
+                "type": "error",
+                "message": "This profile doesn't have a language set up yet - add one first.",
+            })
+            await websocket.close()
+            return
 
         # Inline overrides (e.g. a no-profile-yet fallback caller, or a
         # client that still sends these) only apply if the conversation's
@@ -685,7 +759,7 @@ async def ws_session(websocket: WebSocket):
     else:
         # No profile selected yet (first-run fallback) - fully ephemeral,
         # no persisted memory, config comes straight from the init message.
-        profile = {"id": None, "name": init_msg.get("profile_name") or "the student"}
+        profile = {"id": None, "name": init_msg.get("profile_name") or "the student", "api_key": init_msg.get("api_key")}
         conv_config = {
             "voice_name": init_msg.get("voice_name") or DEFAULT_VOICE,
             "native_language": init_msg.get("native_language") or DEFAULT_NATIVE_LANGUAGE,
@@ -728,7 +802,21 @@ async def ws_session(websocket: WebSocket):
     config = build_config(profile, conv_config, model_name, resumption_handle=resumption_handle, summary_text=summary_text)
 
     try:
-        live_cm, live_session, handle_was_dropped = await _connect_live_with_retries(model_name, config)
+        client = get_client_for_key(profile.get("api_key"))
+    except ValueError as e:
+        print(f"[ws_session] {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"{e} Add one for this profile on the landing page (or /profiles) and try again.",
+            })
+        except Exception:
+            pass
+        await websocket.close()
+        return
+
+    try:
+        live_cm, live_session, handle_was_dropped = await _connect_live_with_retries(client, model_name, config)
         if handle_was_dropped and conv is not None:
             print(f"[ws_session] session_resumption handle for conversation={conv['id']!r} was rejected as dead - cleared.")
             memory.clear_resumption(conv["id"])
@@ -780,7 +868,7 @@ async def ws_session(websocket: WebSocket):
         prev = memory.get_summary(conv["id"])
         since = prev["based_on_turn"] if prev else 0
         if memory.get_turn_count(conv["id"]) - since >= memory.SUMMARY_FOLD_EVERY_N_TURNS:
-            asyncio.create_task(asyncio.to_thread(summarize_conversation, conv["id"], profile.get("name") or "the student"))
+            asyncio.create_task(asyncio.to_thread(summarize_conversation, conv["id"], profile.get("name") or "the student", profile.get("api_key")))
 
     try:
         async def browser_to_live():
@@ -865,7 +953,7 @@ async def ws_session(websocket: WebSocket):
             # ends mid-way through a summarization interval isn't lost, and
             # is cheap/best-effort like every other summarization call.
             try:
-                await asyncio.to_thread(summarize_conversation, conv["id"], profile.get("name") or "the student")
+                await asyncio.to_thread(summarize_conversation, conv["id"], profile.get("name") or "the student", profile.get("api_key"))
             except Exception:
                 pass
         try:
@@ -878,4 +966,8 @@ async def ws_session(websocket: WebSocket):
             pass
 
 
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# html=True is unneeded now - "/" is served by the explicit route above,
+# rendered via Jinja2 rather than a flat static index.html. This mount just
+# serves everything else under static/ as plain files (UI/styles, UI/
+# scripts, vendor/, avatar/, voices/, pcm-processor.js, LanguLearn.ico).
+app.mount("/", StaticFiles(directory="static"), name="static")

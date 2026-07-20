@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Avatar Lip-Sync Prototype</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1a1a; font-family: system-ui, sans-serif; color: #eee; }
+  #avatar { width: 100%; height: 70vh; }
+  #controls { padding: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+  #status { padding: 0 16px; font-size: 13px; color: #9c9; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div id="avatar"></div>
+
+<div id="controls">
+  <button id="btnSample">▶ Play Puck Voice Sample</button>
+  <button id="btnMic">🎤 Start Mic Test</button>
+  <input type="file" id="fileAudio" accept="audio/*" />
+  <button id="btnFile" disabled>▶ Play File Test</button>
+</div>
+<div id="controls">
+  <span style="opacity:0.7">View:</span>
+  <button data-view="head">Head</button>
+  <button data-view="upper">Upper (chest+shoulders+face)</button>
+  <button data-view="full">Full body</button>
+  <span style="opacity:0.7; margin-left:16px">Zoom:</span>
+  <button id="btnZoomOut">−</button>
+  <button id="btnZoomIn">+</button>
+  <button id="btnBg" style="margin-left:16px">Toggle background (black/white)</button>
+</div>
+<div id="status">Loading avatar…</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../vendor/three/build/three.module.js",
+    "three/addons/": "../vendor/three/jsm/",
+    "talkinghead": "../vendor/talkinghead/modules/talkinghead.mjs"
+  }
+}
+</script>
+
+<script type="module">
+  import { TalkingHead } from "talkinghead";
+  import { HeadAudio } from "../vendor/headaudio/modules/headaudio.mjs";
+
+  const statusEl = document.getElementById('status');
+  const log = (msg) => { statusEl.textContent = msg; console.log(msg); };
+
+  let head, headaudio, micStream, micSourceNode;
+
+  async function init() {
+    log("Creating TalkingHead instance…");
+
+    head = new TalkingHead(document.getElementById('avatar'), {
+      cameraView: 'head',
+      dracoEnabled: true,
+      dracoDecoderPath: '../vendor/three/jsm/libs/draco/',
+      lipsyncLang: 'en',
+      lipsyncModules: ['en'],
+      avatarMood: 'neutral'
+    });
+
+    log("Loading Puck_th.glb…");
+    await head.showAvatar({ url: '../avatar/Puck_th.glb' }, (ev) => {
+      if (ev.lengthComputable) {
+        const pct = Math.round((ev.loaded / ev.total) * 100);
+        log(`Loading avatar… ${pct}%`);
+      }
+    });
+    log("Avatar loaded. Setting up HeadAudio…");
+
+    // TalkingHead's animation code (idle micro-expression variation, eye-gaze
+    // blend shapes, etc.) assumes every avatar has the full Ready Player Me/
+    // ARKit blend shape set (52 names). VRoid's set is much coarser - only
+    // vowel mouth shapes, blinks, and a few whole-face "emotion" shapes - and
+    // has none of RPM's per-muscle shapes or eye-look blend shapes at all
+    // (VRoid does eye gaze via bone rotation instead). Without this, animate()
+    // throws the first time it references any name our mesh doesn't have.
+    //
+    // Fix: stub in every standard ARKit name that's missing, as an inert
+    // placeholder with no mesh backing (ms/is left empty) - this mirrors the
+    // exact same "phantom entry" pattern TalkingHead already uses safely for
+    // its own mtExtras shapes when their source shapes are missing (e.g.
+    // "mouthOpen" on an avatar with no "jawOpen"). Setting a stub's value does
+    // nothing visually, which is the correct behavior - not a workaround, just
+    // making the "this shape doesn't exist on this avatar" case behave the way
+    // TalkingHead's own code already handles it elsewhere.
+    //
+    // Any future VRoid-sourced avatar needs this same step (see
+    // design_plans/TALKING_AVATAR_AND_ROADMAP.md).
+    const ARKIT_BLEND_SHAPES = [
+      'browDownLeft','browDownRight','browInnerUp','browOuterUpLeft','browOuterUpRight',
+      'cheekPuff','cheekSquintLeft','cheekSquintRight',
+      'eyeBlinkLeft','eyeBlinkRight',
+      'eyeLookDownLeft','eyeLookDownRight','eyeLookInLeft','eyeLookInRight',
+      'eyeLookOutLeft','eyeLookOutRight','eyeLookUpLeft','eyeLookUpRight',
+      'eyeSquintLeft','eyeSquintRight','eyeWideLeft','eyeWideRight',
+      'jawForward','jawLeft','jawOpen','jawRight',
+      'mouthClose','mouthDimpleLeft','mouthDimpleRight','mouthFrownLeft','mouthFrownRight',
+      'mouthFunnel','mouthLeft','mouthLowerDownLeft','mouthLowerDownRight',
+      'mouthPressLeft','mouthPressRight','mouthPucker','mouthRight',
+      'mouthRollLower','mouthRollUpper','mouthShrugLower','mouthShrugUpper',
+      'mouthSmileLeft','mouthSmileRight','mouthStretchLeft','mouthStretchRight',
+      'mouthUpperUpLeft','mouthUpperUpRight','noseSneerLeft','noseSneerRight','tongueOut',
+      'eyesLookDown','eyesLookUp' // combined both-eye variants some code paths reference
+    ];
+    ARKIT_BLEND_SHAPES.forEach(name => {
+      if (!(name in head.mtAvatar)) {
+        const entry = {
+          fixed: null, realtime: null, system: null, systemd: null, newvalue: null, ref: null,
+          min: head.mtMinExceptions.hasOwnProperty(name) ? head.mtMinExceptions[name] : head.mtMinDefault,
+          max: head.mtMaxExceptions.hasOwnProperty(name) ? head.mtMaxExceptions[name] : head.mtMaxDefault,
+          easing: head.mtEasingDefault, base: null, v: 0, needsUpdate: false,
+          acc: (head.mtAccExceptions.hasOwnProperty(name) ? head.mtAccExceptions[name] : head.mtAccDefault) / 1000,
+          maxv: (head.mtMaxVExceptions.hasOwnProperty(name) ? head.mtMaxVExceptions[name] : head.mtMaxVDefault) / 1000,
+          limit: head.mtLimits.hasOwnProperty(name) ? head.mtLimits[name] : null,
+          onchange: head.mtOnchange.hasOwnProperty(name) ? head.mtOnchange[name] : null,
+          baseline: head.mtBaselineExceptions.hasOwnProperty(name) ? head.mtBaselineExceptions[name] : head.mtBaselineDefault,
+          ms: [], is: []
+        };
+        entry.value = entry.baseline;
+        entry.applied = entry.baseline;
+        head.mtAvatar[name] = entry;
+      }
+    });
+
+    // Note: mtRandomized is intentionally left as TalkingHead's original
+    // list, not filtered down - every name in it now resolves to a valid
+    // stub entry above (even though none of them have real mesh backing for
+    // this avatar), so picking any of them at random is a safe no-op. An
+    // earlier version of this file filtered mtRandomized down to only
+    // mesh-backed shapes, which emptied the array entirely for this avatar
+    // and crashed (Math.random() * 0 breaks the array indexing) - the stubs
+    // alone are the fix; don't filter this list.
+
+    // Register the audio worklet processor on TalkingHead's own AudioContext
+    await head.audioCtx.audioWorklet.addModule("../vendor/headaudio/modules/headworklet.mjs");
+
+    // Create the HeadAudio node
+    headaudio = new HeadAudio(head.audioCtx, {
+      processorOptions: {},
+      parameterData: {
+        vadGateActiveDb: -40,
+        vadGateInactiveDb: -60
+      }
+    });
+
+    // Load the pre-trained viseme model
+    await headaudio.loadModel("../vendor/headaudio/dist/model-en-mixed.bin");
+
+    // Wire viseme output -> avatar blend shapes
+    headaudio.onvalue = (key, value) => {
+      head.setValue(key, value);
+    };
+
+    // Let TalkingHead's animation loop drive HeadAudio's per-frame update
+    head.opt.update = headaudio.update.bind(headaudio);
+
+    log("Ready. Try the voice sample, mic test, or pick an audio file.");
+    document.getElementById('btnSample').disabled = false;
+    document.getElementById('btnFile').disabled = false;
+  }
+
+  // --- Pre-recorded voice sample test (no mic/recording needed) ---
+  const btnSample = document.getElementById('btnSample');
+  let sampleAudioEl = null;
+  let sampleSourceNode = null;
+
+  btnSample.addEventListener('click', async () => {
+    if (sampleAudioEl) {
+      sampleAudioEl.pause();
+      sampleAudioEl.remove();
+    }
+    sampleAudioEl = new Audio('../voices/Puck.wav');
+    sampleAudioEl.crossOrigin = "anonymous";
+
+    if (head.audioCtx.state === 'suspended') {
+      await head.audioCtx.resume();
+    }
+
+    sampleSourceNode = head.audioCtx.createMediaElementSource(sampleAudioEl);
+    sampleSourceNode.connect(headaudio);            // for viseme analysis
+    sampleSourceNode.connect(head.audioCtx.destination); // so we can actually hear it
+
+    sampleAudioEl.play();
+    log("Playing Puck voice sample — watch the avatar's mouth.");
+  });
+
+  // --- Mic test ---
+  const btnMic = document.getElementById('btnMic');
+  let micActive = false;
+
+  btnMic.addEventListener('click', async () => {
+    if (!micActive) {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micSourceNode = head.audioCtx.createMediaStreamSource(micStream);
+        micSourceNode.connect(headaudio);
+        micActive = true;
+        btnMic.textContent = "⏹ Stop Mic Test";
+        log("Mic connected — speak and watch the avatar's mouth.");
+      } catch (err) {
+        log("Mic error: " + err.message);
+      }
+    } else {
+      micSourceNode.disconnect(headaudio);
+      micStream.getTracks().forEach(t => t.stop());
+      micActive = false;
+      btnMic.textContent = "🎤 Start Mic Test";
+      log("Mic stopped.");
+    }
+  });
+
+  // --- File test ---
+  const fileInput = document.getElementById('fileAudio');
+  const btnFile = document.getElementById('btnFile');
+  let audioEl = null;
+  let fileSourceNode = null;
+
+  btnFile.addEventListener('click', async () => {
+    if (!fileInput.files[0]) {
+      log("Pick an audio file first.");
+      return;
+    }
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.remove();
+    }
+    audioEl = new Audio(URL.createObjectURL(fileInput.files[0]));
+    audioEl.crossOrigin = "anonymous";
+
+    // Resume the audio context (browsers require a user gesture)
+    if (head.audioCtx.state === 'suspended') {
+      await head.audioCtx.resume();
+    }
+
+    fileSourceNode = head.audioCtx.createMediaElementSource(audioEl);
+    fileSourceNode.connect(headaudio);          // for viseme analysis
+    fileSourceNode.connect(head.audioCtx.destination); // so we can actually hear it
+
+    audioEl.play();
+    log("Playing file — watch the avatar's mouth.");
+  });
+
+  init().catch(err => {
+    log("ERROR: " + err.message);
+    console.error(err);
+  });
+
+  // --- View presets + zoom ---
+  // cameraDistance is an offset added to each view's base distance (see
+  // TalkingHead's setView: 'head' view starts at distance 2, 'upper' at
+  // 4.5, 'full' at 12) - negative moves the camera closer (zoom in),
+  // positive moves it further away (zoom out). Kept per-view since "zoom
+  // in a bit" means something different at head-distance vs full-body-distance.
+  let currentView = 'head';
+  let zoomOffset = 0;
+
+  function applyView() {
+    if (!head) return;
+    head.setView(currentView, { cameraDistance: zoomOffset });
+  }
+
+  document.querySelectorAll('button[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentView = btn.dataset.view;
+      zoomOffset = 0; // reset zoom when switching views, so each view starts at its own default framing
+      applyView();
+    });
+  });
+
+  document.getElementById('btnZoomIn').addEventListener('click', () => {
+    zoomOffset -= 0.5;
+    applyView();
+  });
+  document.getElementById('btnZoomOut').addEventListener('click', () => {
+    zoomOffset += 0.5;
+    applyView();
+  });
+
+  // --- Background toggle (for capturing preview images on white vs black) ---
+  let bgIsBlack = true;
+  document.getElementById('btnBg').addEventListener('click', () => {
+    bgIsBlack = !bgIsBlack;
+    document.body.style.background = bgIsBlack ? '#1a1a1a' : '#ffffff';
+    document.body.style.color = bgIsBlack ? '#eee' : '#111';
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,238 @@
+/* --- Avatar + voice selection page ---
+   #avatarSelectApp is a flex child of the shared #pageBody (see base.css),
+   which already sizes it to fill the viewport below the top bar. */
+
+#avatarSelectApp {
+  display: flex;
+  flex-direction: column;
+  padding: 32px 40px;
+  overflow-y: auto;
+}
+
+/* Side columns are capped so tile size stays reasonable on wide screens;
+   the center column is allowed to grow much more, so the avatar preview
+   is the thing that actually gets bigger on a larger viewport - see
+   #avatarPreviewFrame below, which is sized relative to this column. */
+#avatarColumns {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(240px, 440px) minmax(340px, 680px) minmax(240px, 440px);
+  justify-content: center;
+  gap: 40px;
+  align-items: start;
+}
+
+.tutor-column-title {
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+.tutor-column-title::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin: 8px auto 0;
+  background: var(--accent);
+  border-radius: 1px;
+}
+.tutor-column {
+  margin-top: 8px;
+}
+
+.tutor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tutor-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--panel-raised);
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, transform 0.1s ease;
+}
+.tutor-tile:hover:not(:disabled) { border-color: var(--accent); }
+.tutor-tile.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.tutor-tile:active:not(:disabled) { transform: scale(0.97); }
+
+.tutor-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tutor-tile-fallback {
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tutor-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 4px 6px 5px;
+  background: linear-gradient(to top, rgba(10,12,16,0.85), transparent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.tutor-tile.coming-soon {
+  cursor: default;
+  opacity: 0.45;
+}
+.tutor-tile.coming-soon .tutor-name { background: none; }
+
+.tutor-badge {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* --- Center: avatar preview + target language --- */
+
+.tutor-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tutor-center-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+.tutor-center-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 6px 0 20px;
+}
+
+/* Sized relative to the (much wider-capped) center grid column, so this
+   is the element that actually grows as the window is maximized - the
+   tutor-grid tiles above are capped instead. Portrait-ish aspect ratio
+   since the preview shows the avatar's full body. */
+#avatarPreviewFrame {
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 3 / 4;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+#avatarPreview {
+  width: 100%;
+  height: 100%;
+}
+
+#avatarPreviewHint {
+  margin: 12px 0 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+#avatarVoiceMeta {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin: 0 0 24px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  min-height: 1.1em;
+}
+#avatarVoiceMeta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Wrapped together in a .tutor-center-field container in the HTML so
+   label and input always share the exact same box - giving the label
+   align-self/width independently of the input caused them to size against
+   the (much wider on maximize) flex container separately and visibly
+   drift apart. */
+.tutor-center-field {
+  width: 100%;
+  max-width: 460px;
+}
+.tutor-center-field .text-input {
+  width: 100%;
+}
+
+/* --- Bottom nav --- */
+
+#avatarSelectNav {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 32px;
+}
+
+#avatarSelectNav .primary-btn,
+#avatarSelectNav .secondary-btn {
+  padding: 11px 30px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+#avatarSelectNav .secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+#avatarSelectNav .secondary-btn:hover { border-color: var(--accent); color: var(--accent); }
+#avatarSelectNav .secondary-btn:disabled { opacity: 0.5; cursor: default; }
+
+#avatarNextBtn:disabled {
+  background: var(--panel-raised);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  #avatarColumns {
+    grid-template-columns: 1fr;
+  }
+  .tutor-center { order: -1; margin-bottom: 24px; }
+  #avatarPreviewFrame { max-width: 360px; }
+}

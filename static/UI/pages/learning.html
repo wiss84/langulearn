@@ -1,0 +1,47 @@
+{% extends "index.html" %}
+
+{% block title %}LanguLearn{% endblock %}
+
+{% block topbar_home %}
+<a id="homeLink" href="/profiles" class="icon-btn" title="Switch profile">🏠</a>
+{% endblock %}
+
+{% block topbar_left_extra %}
+<span id="connectionDot"></span> LanguLearn <span id="sessionStatusText" class="session-status"></span>
+{% endblock %}
+
+{% block topbar_right %}
+<button id="cameraToggleBtn" class="icon-btn" type="button" title="Show/hide avatar">🎥</button>
+{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/main.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/avatar_drawer.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="body">
+  {% include "pages/_main.html" %}
+  {% include "pages/_avatar_drawer.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/state.js"></script>
+<script src="/UI/scripts/transcript.js"></script>
+<script src="/UI/scripts/profiles.js"></script>
+<script src="/UI/scripts/conversations.js"></script>
+<script src="/UI/scripts/audio.js"></script>
+<script src="/UI/scripts/websocket.js"></script>
+<script src="/UI/scripts/init.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/build/three.module.js",
+    "three/addons/": "/vendor/three/jsm/",
+    "talkinghead": "/vendor/talkinghead/modules/talkinghead.mjs"
+  }
+}
+</script>
+<script type="module" src="/UI/scripts/avatarDrawer.js"></script>
+{% endblock %}

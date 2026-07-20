@@ -9,3 +9,4 @@ pywebview
 faster-whisper
 protobuf<7.0.0,>=4.25.8
 googleapis-common-protos>=1.5.5
+jinja2>=3.1.4
