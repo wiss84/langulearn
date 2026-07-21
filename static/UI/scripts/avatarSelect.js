@@ -7,11 +7,13 @@
 //  - New profile (no ?profile_id in the URL): came from /landing, which
 //    stashed name/native_language/api_key/model_name in sessionStorage.
 //    Next creates the profile AND its first conversation.
-//  - Existing profile (?profile_id=<id> in the URL): came from "Change
-//    language" in the learning page's top bar. Next only creates a new
-//    conversation under that profile - no profile fields to collect.
+//  - Existing profile (?profile_id=<id> in the URL): came from "+ Learn a
+//    new language" in a profile's detail modal on /profiles. Next only
+//    creates a new conversation under that profile - no profile fields to
+//    collect, and Back returns to /profiles (reopening that same profile's
+//    detail modal) rather than /landing.
 
-import { initAvatarHead, loadAvatarAndPlaySample } from '/UI/scripts/avatarPreview.js';
+import { initAvatarHead, loadAvatarAndPlaySample, playGreeting } from '/UI/scripts/avatarPreview.js';
 
 const femaleGrid = document.getElementById('femaleGrid');
 const maleGrid = document.getElementById('maleGrid');
@@ -93,6 +95,7 @@ async function selectAvatar(voiceName, tileEl) {
       avatarPreviewHint.textContent = `Loading ${voiceName}... ${pct}%`;
     });
     avatarPreviewHint.textContent = voiceName;
+    playGreeting();
   } catch (e) {
     avatarPreviewHint.textContent = 'Could not load this avatar - try another.';
     console.error(e);
@@ -103,7 +106,12 @@ async function selectAvatar(voiceName, tileEl) {
 targetLanguageInput.addEventListener('input', updateNextEnabled);
 
 backBtn.addEventListener('click', () => {
-  window.location.href = existingProfileId ? '/' : '/landing';
+  // Returning to a profile's detail modal (not just the bare /profiles
+  // list) needs the id passed along so that page knows to reopen it -
+  // see profilesPage.js's handling of ?open=.
+  window.location.href = existingProfileId
+    ? `/profiles?open=${encodeURIComponent(existingProfileId)}`
+    : '/landing';
 });
 
 async function createConversationForProfile(profileId, nativeLanguage, modelName) {
@@ -199,11 +207,9 @@ async function init() {
     console.error(e);
   }
 
-  const firstAvailable = voicesData.find((v) => availableAvatars.includes(v.name));
-  if (firstAvailable) {
-    const tile = document.querySelector(`.tutor-tile[data-voice="${firstAvailable.name}"]`);
-    selectAvatar(firstAvailable.name, tile);
-  } else {
+  // Nothing pre-selected - the preview stays empty (default hint text)
+  // until the user actually clicks a tutor.
+  if (!availableAvatars.length) {
     avatarPreviewHint.textContent = 'No avatars ready yet - check back soon.';
   }
 

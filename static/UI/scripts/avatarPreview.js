@@ -12,14 +12,26 @@ let ready = false;
 let currentAudioEl = null;
 let currentSourceNode = null;
 
-// Known tuning item: HeadAudio's audio-texture-based viseme detection is
-// conservative by design, and VRoid's Fcl_MTH_* mouth shapes have a
-// smaller geometric range than RPM's defaults - both combine to make
-// mouth movement read as subtle rather than a clear open-close motion.
-// Boosting mouth-related (viseme_*) values compensates; kept as one
-// tunable constant rather than hardcoded inline. mtAvatar clamps applied
-// values to [0,1] regardless, so boosting past 1 here is safe.
-const MOUTH_BOOST = 1.4;
+// Known tuning item: mouth movement reads as subtle/laggy/out-of-sync,
+// which turned out to be less about amplitude than about SPEED. setValue()
+// (what HeadAudio drives) runs through TalkingHead's exponential smoothing
+// - its default acceleration/max-velocity caps are tuned for natural idle
+// motion (eyebrows drifting, mouth micro-movement), not for visemes that
+// need to swing across their full range within a single ~100-150ms
+// phoneme. With the defaults, a viseme is often still easing toward one
+// target when the next one arrives, which reads as "barely moving" even
+// though the underlying values ARE timed correctly (HeadAudio analyzes
+// the real audio graph sample-by-sample as it plays - there's no missing-
+// timestamp problem the way there would be for a text-driven approach).
+// TalkingHead already solves this exact problem for its own fast shapes -
+// eye blinks get a 10x acceleration override (mtAccExceptions) - so
+// visemes (and jawOpen) get the same treatment below, applied before
+// showAvatar() so it's baked into every mtAvatar entry from the start.
+// MOUTH_BOOST stays as a smaller amplitude nudge on top - clamped to 1
+// regardless, so it's safe either way.
+const MOUTH_BOOST = 1.5;
+const VISEME_ACC = 0.15; // vs TalkingHead's mtAccDefault of 0.01
+const VISEME_MAXV = 15; // vs TalkingHead's mtMaxVDefault of 5
 
 // TalkingHead's animation code assumes every avatar has the full Ready
 // Player Me/ARKit blend shape set (52 names). VRoid's set is coarser, so
@@ -96,6 +108,16 @@ export async function initAvatarHead(containerEl) {
   };
   head.opt.update = headaudio.update.bind(headaudio);
 
+  // Must happen before any showAvatar() call - see the MOUTH_BOOST comment
+  // above. showAvatar() (and our own stubMissingBlendShapes) build each
+  // mtAvatar entry's acc/maxv from these exception dicts at creation time.
+  head.visemeNames.forEach((v) => {
+    head.mtAccExceptions['viseme_' + v] = VISEME_ACC;
+    head.mtMaxVExceptions['viseme_' + v] = VISEME_MAXV;
+  });
+  head.mtAccExceptions['jawOpen'] = VISEME_ACC;
+  head.mtMaxVExceptions['jawOpen'] = VISEME_MAXV;
+
   ready = true;
 }
 
@@ -126,4 +148,12 @@ export async function loadAvatarAndPlaySample(voiceName, onProgress) {
   currentSourceNode.connect(headaudio); // for viseme analysis
   currentSourceNode.connect(head.audioCtx.destination); // so it's actually audible
   await currentAudioEl.play();
+}
+
+export function playGreeting() {
+  // "handup" is TalkingHead's built-in gesture template (used by its own
+  // 👋 emoji animation); mirror=true flips it from the template's default
+  // left hand to the right hand, which reads as a natural wave hello.
+  if (!ready || !head) return;
+  head.playGesture('handup', 3, true, 700);
 }

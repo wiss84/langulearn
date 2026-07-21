@@ -22,8 +22,17 @@ const avatarDrawer = document.getElementById('avatarDrawer');
 const avatarDrawerPreview = document.getElementById('avatarDrawerPreview');
 const avatarDrawerHint = document.getElementById('avatarDrawerHint');
 const avatarMaximizeBtn = document.getElementById('avatarMaximizeBtn');
+const avatarViewSelect = document.getElementById('avatarViewSelect');
 
-const MOUTH_BOOST = 1.4; // see avatarPreview.js for why this exists
+// See avatarPreview.js for the full reasoning - this isn't primarily an
+// amplitude issue, it's a SPEED one: setValue()'s default smoothing (tuned
+// for idle motion) can't keep up with phoneme-speed viseme swings, so
+// visemes get the same fast-acceleration override TalkingHead's own code
+// already gives eye blinks. MOUTH_BOOST is a smaller amplitude nudge on
+// top of that.
+const MOUTH_BOOST = 1.5;
+const VISEME_ACC = 0.15;
+const VISEME_MAXV = 15;
 
 let head = null;
 let headaudio = null;
@@ -100,6 +109,16 @@ async function ensureAvatarReady() {
   };
   head.opt.update = headaudio.update.bind(headaudio);
 
+  // Must happen before showAvatar() - see the reasoning at the top of the
+  // file. showAvatar() (and stubMissingBlendShapes) build each mtAvatar
+  // entry's acc/maxv from these exception dicts at creation time.
+  head.visemeNames.forEach((v) => {
+    head.mtAccExceptions['viseme_' + v] = VISEME_ACC;
+    head.mtMaxVExceptions['viseme_' + v] = VISEME_MAXV;
+  });
+  head.mtAccExceptions['jawOpen'] = VISEME_ACC;
+  head.mtMaxVExceptions['jawOpen'] = VISEME_MAXV;
+
   const voiceName = window.currentVoiceName || 'Kore';
   try {
     await head.showAvatar({ url: `/avatar/${voiceName}_th.glb` });
@@ -133,6 +152,7 @@ cameraToggleBtn.addEventListener('click', async () => {
   } else {
     avatarDrawer.classList.remove('open');
     avatarMaximizeBtn.style.display = 'none';
+    avatarViewSelect.style.display = 'none';
     if (isMaximized) exitMaximize();
   }
 });
@@ -142,6 +162,8 @@ function enterMaximize() {
   bodyEl.classList.add('avatar-fullscreen');
   avatarMaximizeBtn.textContent = '⤡';
   avatarMaximizeBtn.title = 'Minimize avatar';
+  avatarViewSelect.style.display = 'inline-block';
+  avatarViewSelect.value = 'full';
   if (head) head.setView('full');
 }
 
@@ -150,9 +172,14 @@ function exitMaximize() {
   bodyEl.classList.remove('avatar-fullscreen');
   avatarMaximizeBtn.textContent = '⤢';
   avatarMaximizeBtn.title = 'Maximize avatar';
+  avatarViewSelect.style.display = 'none';
   if (head) head.setView('upper');
 }
 
 avatarMaximizeBtn.addEventListener('click', () => {
   if (isMaximized) exitMaximize(); else enterMaximize();
+});
+
+avatarViewSelect.addEventListener('change', () => {
+  if (head) head.setView(avatarViewSelect.value);
 });

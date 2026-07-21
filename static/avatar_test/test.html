@@ -8,7 +8,9 @@
   #avatar { width: 100%; height: 70vh; }
   #controls { padding: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   button { padding: 8px 16px; font-size: 14px; cursor: pointer; }
+  input[type="text"] { padding: 8px 10px; font-size: 14px; }
   #status { padding: 0 16px; font-size: 13px; color: #9c9; white-space: pre-wrap; }
+  #availabilityHint { font-size: 12px; opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -16,10 +18,17 @@
 <div id="avatar"></div>
 
 <div id="controls">
-  <button id="btnSample">▶ Play Puck Voice Sample</button>
+  <label for="avatarNameInput" style="opacity:0.7">Avatar:</label>
+  <input type="text" list="avatarNamesList" id="avatarNameInput" placeholder="Type or pick a name..." />
+  <datalist id="avatarNamesList"></datalist>
+  <button id="btnLoadAvatar">▶ Load + Play Sample</button>
+  <span id="availabilityHint"></span>
+</div>
+<div id="controls">
   <button id="btnMic">🎤 Start Mic Test</button>
   <input type="file" id="fileAudio" accept="audio/*" />
   <button id="btnFile" disabled>▶ Play File Test</button>
+  <button id="btnLogShapes" style="margin-left:16px">🔍 Log blend shapes (console)</button>
 </div>
 <div id="controls">
   <span style="opacity:0.7">View:</span>
@@ -31,7 +40,7 @@
   <button id="btnZoomIn">+</button>
   <button id="btnBg" style="margin-left:16px">Toggle background (black/white)</button>
 </div>
-<div id="status">Loading avatar…</div>
+<div id="status">Loading...</div>
 
 <script type="importmap">
 {
@@ -51,63 +60,52 @@
   const log = (msg) => { statusEl.textContent = msg; console.log(msg); };
 
   let head, headaudio, micStream, micSourceNode;
+  let availableAvatars = [];
 
-  async function init() {
-    log("Creating TalkingHead instance…");
+  // Same tuning as the real app (see static/UI/scripts/avatarPreview.js for
+  // the full reasoning) - visemes need a much faster acceleration/max-
+  // velocity than TalkingHead's idle-motion defaults, or they're still
+  // easing toward one target when the next viseme arrives.
+  const VISEME_ACC = 0.15;
+  const VISEME_MAXV = 15;
 
-    head = new TalkingHead(document.getElementById('avatar'), {
-      cameraView: 'head',
-      dracoEnabled: true,
-      dracoDecoderPath: '../vendor/three/jsm/libs/draco/',
-      lipsyncLang: 'en',
-      lipsyncModules: ['en'],
-      avatarMood: 'neutral'
-    });
+  // TalkingHead's animation code (idle micro-expression variation, eye-gaze
+  // blend shapes, etc.) assumes every avatar has the full Ready Player Me/
+  // ARKit blend shape set (52 names). VRoid's set is much coarser - only
+  // vowel mouth shapes, blinks, and a few whole-face "emotion" shapes - and
+  // has none of RPM's per-muscle shapes or eye-look blend shapes at all
+  // (VRoid does eye gaze via bone rotation instead). Without this, animate()
+  // throws the first time it references any name our mesh doesn't have.
+  //
+  // Fix: stub in every standard ARKit name that's missing, as an inert
+  // placeholder with no mesh backing (ms/is left empty) - this mirrors the
+  // exact same "phantom entry" pattern TalkingHead already uses safely for
+  // its own mtExtras shapes when their source shapes are missing (e.g.
+  // "mouthOpen" on an avatar with no "jawOpen"). Setting a stub's value does
+  // nothing visually, which is the correct behavior - not a workaround, just
+  // making the "this shape doesn't exist on this avatar" case behave the way
+  // TalkingHead's own code already handles it elsewhere.
+  //
+  // Any future VRoid-sourced avatar needs this same step (see
+  // design_plans/TALKING_AVATAR_AND_ROADMAP.md).
+  const ARKIT_BLEND_SHAPES = [
+    'browDownLeft','browDownRight','browInnerUp','browOuterUpLeft','browOuterUpRight',
+    'cheekPuff','cheekSquintLeft','cheekSquintRight',
+    'eyeBlinkLeft','eyeBlinkRight',
+    'eyeLookDownLeft','eyeLookDownRight','eyeLookInLeft','eyeLookInRight',
+    'eyeLookOutLeft','eyeLookOutRight','eyeLookUpLeft','eyeLookUpRight',
+    'eyeSquintLeft','eyeSquintRight','eyeWideLeft','eyeWideRight',
+    'jawForward','jawLeft','jawOpen','jawRight',
+    'mouthClose','mouthDimpleLeft','mouthDimpleRight','mouthFrownLeft','mouthFrownRight',
+    'mouthFunnel','mouthLeft','mouthLowerDownLeft','mouthLowerDownRight',
+    'mouthPressLeft','mouthPressRight','mouthPucker','mouthRight',
+    'mouthRollLower','mouthRollUpper','mouthShrugLower','mouthShrugUpper',
+    'mouthSmileLeft','mouthSmileRight','mouthStretchLeft','mouthStretchRight',
+    'mouthUpperUpLeft','mouthUpperUpRight','noseSneerLeft','noseSneerRight','tongueOut',
+    'eyesLookDown','eyesLookUp' // combined both-eye variants some code paths reference
+  ];
 
-    log("Loading Puck_th.glb…");
-    await head.showAvatar({ url: '../avatar/Puck_th.glb' }, (ev) => {
-      if (ev.lengthComputable) {
-        const pct = Math.round((ev.loaded / ev.total) * 100);
-        log(`Loading avatar… ${pct}%`);
-      }
-    });
-    log("Avatar loaded. Setting up HeadAudio…");
-
-    // TalkingHead's animation code (idle micro-expression variation, eye-gaze
-    // blend shapes, etc.) assumes every avatar has the full Ready Player Me/
-    // ARKit blend shape set (52 names). VRoid's set is much coarser - only
-    // vowel mouth shapes, blinks, and a few whole-face "emotion" shapes - and
-    // has none of RPM's per-muscle shapes or eye-look blend shapes at all
-    // (VRoid does eye gaze via bone rotation instead). Without this, animate()
-    // throws the first time it references any name our mesh doesn't have.
-    //
-    // Fix: stub in every standard ARKit name that's missing, as an inert
-    // placeholder with no mesh backing (ms/is left empty) - this mirrors the
-    // exact same "phantom entry" pattern TalkingHead already uses safely for
-    // its own mtExtras shapes when their source shapes are missing (e.g.
-    // "mouthOpen" on an avatar with no "jawOpen"). Setting a stub's value does
-    // nothing visually, which is the correct behavior - not a workaround, just
-    // making the "this shape doesn't exist on this avatar" case behave the way
-    // TalkingHead's own code already handles it elsewhere.
-    //
-    // Any future VRoid-sourced avatar needs this same step (see
-    // design_plans/TALKING_AVATAR_AND_ROADMAP.md).
-    const ARKIT_BLEND_SHAPES = [
-      'browDownLeft','browDownRight','browInnerUp','browOuterUpLeft','browOuterUpRight',
-      'cheekPuff','cheekSquintLeft','cheekSquintRight',
-      'eyeBlinkLeft','eyeBlinkRight',
-      'eyeLookDownLeft','eyeLookDownRight','eyeLookInLeft','eyeLookInRight',
-      'eyeLookOutLeft','eyeLookOutRight','eyeLookUpLeft','eyeLookUpRight',
-      'eyeSquintLeft','eyeSquintRight','eyeWideLeft','eyeWideRight',
-      'jawForward','jawLeft','jawOpen','jawRight',
-      'mouthClose','mouthDimpleLeft','mouthDimpleRight','mouthFrownLeft','mouthFrownRight',
-      'mouthFunnel','mouthLeft','mouthLowerDownLeft','mouthLowerDownRight',
-      'mouthPressLeft','mouthPressRight','mouthPucker','mouthRight',
-      'mouthRollLower','mouthRollUpper','mouthShrugLower','mouthShrugUpper',
-      'mouthSmileLeft','mouthSmileRight','mouthStretchLeft','mouthStretchRight',
-      'mouthUpperUpLeft','mouthUpperUpRight','noseSneerLeft','noseSneerRight','tongueOut',
-      'eyesLookDown','eyesLookUp' // combined both-eye variants some code paths reference
-    ];
+  function stubMissingBlendShapes() {
     ARKIT_BLEND_SHAPES.forEach(name => {
       if (!(name in head.mtAvatar)) {
         const entry = {
@@ -127,15 +125,24 @@
         head.mtAvatar[name] = entry;
       }
     });
-
     // Note: mtRandomized is intentionally left as TalkingHead's original
     // list, not filtered down - every name in it now resolves to a valid
-    // stub entry above (even though none of them have real mesh backing for
-    // this avatar), so picking any of them at random is a safe no-op. An
-    // earlier version of this file filtered mtRandomized down to only
-    // mesh-backed shapes, which emptied the array entirely for this avatar
-    // and crashed (Math.random() * 0 breaks the array indexing) - the stubs
-    // alone are the fix; don't filter this list.
+    // stub entry above, so picking any of them at random is a safe no-op.
+    // Filtering it down to only mesh-backed shapes empties the array for a
+    // VRoid avatar and crashes idle animation (Math.random() * 0).
+  }
+
+  async function initEngine() {
+    log("Creating TalkingHead instance...");
+
+    head = new TalkingHead(document.getElementById('avatar'), {
+      cameraView: 'head',
+      dracoEnabled: true,
+      dracoDecoderPath: '../vendor/three/jsm/libs/draco/',
+      lipsyncLang: 'en',
+      lipsyncModules: ['en'],
+      avatarMood: 'neutral'
+    });
 
     // Register the audio worklet processor on TalkingHead's own AudioContext
     await head.audioCtx.audioWorklet.addModule("../vendor/headaudio/modules/headworklet.mjs");
@@ -160,22 +167,94 @@
     // Let TalkingHead's animation loop drive HeadAudio's per-frame update
     head.opt.update = headaudio.update.bind(headaudio);
 
-    log("Ready. Try the voice sample, mic test, or pick an audio file.");
-    document.getElementById('btnSample').disabled = false;
-    document.getElementById('btnFile').disabled = false;
+    // Must happen before any showAvatar() call - see VISEME_ACC/VISEME_MAXV
+    // above. showAvatar() (and stubMissingBlendShapes) build each mtAvatar
+    // entry's acc/maxv from these exception dicts at creation time.
+    head.visemeNames.forEach(v => {
+      head.mtAccExceptions['viseme_' + v] = VISEME_ACC;
+      head.mtMaxVExceptions['viseme_' + v] = VISEME_MAXV;
+    });
+    head.mtAccExceptions['jawOpen'] = VISEME_ACC;
+    head.mtMaxVExceptions['jawOpen'] = VISEME_MAXV;
+
+    // Exposed for console debugging - see the "Log blend shapes" button
+    // below, or just poke at window.head directly in DevTools.
+    window.head = head;
+    window.headaudio = headaudio;
   }
 
-  // --- Pre-recorded voice sample test (no mic/recording needed) ---
-  const btnSample = document.getElementById('btnSample');
+  // --- Avatar name picker: searchable via <datalist> instead of hardcoding
+  // one name and hand-editing this file every time a new avatar is ready.
+  // Populated from the real voice registry (/api/voices) so it's always
+  // exactly the 30 names in use - /api/avatars additionally marks which
+  // ones already have a .glb (the rest can still be typed/picked, they'll
+  // just fail to load with a clear message until their .glb exists). ---
+
+  const avatarNameInput = document.getElementById('avatarNameInput');
+  const availabilityHint = document.getElementById('availabilityHint');
+  const btnLoadAvatar = document.getElementById('btnLoadAvatar');
+
+  function updateAvailabilityHint() {
+    const name = avatarNameInput.value.trim();
+    if (!name) { availabilityHint.textContent = ''; return; }
+    availabilityHint.textContent = availableAvatars.includes(name)
+      ? '✓ .glb ready'
+      : '✗ no .glb yet for this name';
+  }
+  avatarNameInput.addEventListener('input', updateAvailabilityHint);
+
+  async function populateAvatarPicker() {
+    const [voicesRes, avatarsRes] = await Promise.all([
+      fetch('/api/voices'),
+      fetch('/api/avatars'),
+    ]);
+    const { voices } = await voicesRes.json();
+    const { available } = await avatarsRes.json();
+    availableAvatars = available;
+
+    const names = voices.map(v => v.name).sort();
+    const datalist = document.getElementById('avatarNamesList');
+    datalist.innerHTML = '';
+    names.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      datalist.appendChild(opt);
+    });
+
+    // Default to the first available avatar (if any), rather than
+    // hardcoding a name that may or may not have a .glb yet.
+    avatarNameInput.value = available[0] || names[0] || '';
+    updateAvailabilityHint();
+  }
+
+  // --- Load an avatar by name + play its voice sample ---
   let sampleAudioEl = null;
   let sampleSourceNode = null;
 
-  btnSample.addEventListener('click', async () => {
+  async function loadAvatarAndPlaySample(name) {
+    if (!name) { log("Type or pick an avatar name first."); return; }
+
+    log(`Loading ${name}_th.glb...`);
+    try {
+      await head.showAvatar({ url: `../avatar/${name}_th.glb` }, (ev) => {
+        if (ev.lengthComputable) {
+          const pct = Math.round((ev.loaded / ev.total) * 100);
+          log(`Loading ${name}_th.glb... ${pct}%`);
+        }
+      });
+    } catch (e) {
+      log(`Could not load ${name}_th.glb - has this avatar been converted yet? (${e.message})`);
+      console.error(e);
+      return;
+    }
+    stubMissingBlendShapes();
+    log(`${name} loaded. Playing voice sample...`);
+
     if (sampleAudioEl) {
       sampleAudioEl.pause();
       sampleAudioEl.remove();
     }
-    sampleAudioEl = new Audio('../voices/Puck.wav');
+    sampleAudioEl = new Audio(`../voices/${name}.wav`);
     sampleAudioEl.crossOrigin = "anonymous";
 
     if (head.audioCtx.state === 'suspended') {
@@ -186,9 +265,30 @@
     sampleSourceNode.connect(headaudio);            // for viseme analysis
     sampleSourceNode.connect(head.audioCtx.destination); // so we can actually hear it
 
-    sampleAudioEl.play();
-    log("Playing Puck voice sample — watch the avatar's mouth.");
+    try {
+      await sampleAudioEl.play();
+      log(`Playing ${name} voice sample - watch the avatar's mouth.`);
+    } catch (e) {
+      log(`${name} loaded, but couldn't play the voice sample (${e.message}) - is voices/${name}.wav present?`);
+    }
+  }
+
+  btnLoadAvatar.addEventListener('click', () => {
+    loadAvatarAndPlaySample(avatarNameInput.value.trim());
   });
+  avatarNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadAvatarAndPlaySample(avatarNameInput.value.trim());
+  });
+
+  async function init() {
+    await initEngine();
+    await populateAvatarPicker();
+    log("Ready. Pick an avatar and load it, or try the mic/file test.");
+    document.getElementById('btnFile').disabled = false;
+    if (avatarNameInput.value) {
+      await loadAvatarAndPlaySample(avatarNameInput.value);
+    }
+  }
 
   // --- Mic test ---
   const btnMic = document.getElementById('btnMic');
@@ -202,7 +302,7 @@
         micSourceNode.connect(headaudio);
         micActive = true;
         btnMic.textContent = "⏹ Stop Mic Test";
-        log("Mic connected — speak and watch the avatar's mouth.");
+        log("Mic connected - speak and watch the avatar's mouth.");
       } catch (err) {
         log("Mic error: " + err.message);
       }
@@ -243,12 +343,35 @@
     fileSourceNode.connect(head.audioCtx.destination); // so we can actually hear it
 
     audioEl.play();
-    log("Playing file — watch the avatar's mouth.");
+    log("Playing file - watch the avatar's mouth.");
   });
 
   init().catch(err => {
     log("ERROR: " + err.message);
     console.error(err);
+  });
+
+  // --- Log blend shapes: which ARKit/viseme names are REAL (mesh-backed,
+  // will actually move) vs STUBBED (inert placeholder from
+  // stubMissingBlendShapes - harmless, but won't move no matter what value
+  // is set). A shape is real if TalkingHead found it in the mesh's morph
+  // target dictionary during showAvatar() - tracked in mtAvatar[name].ms
+  // (one entry per mesh the shape was found on); stubs have ms=[] since
+  // stubMissingBlendShapes never populates it. ---
+  document.getElementById('btnLogShapes').addEventListener('click', () => {
+    if (!head || !head.mtAvatar) { log("Load an avatar first."); return; }
+    const names = Object.keys(head.mtAvatar).sort();
+    const real = names.filter(n => head.mtAvatar[n].ms.length > 0);
+    const stubbed = names.filter(n => head.mtAvatar[n].ms.length === 0);
+    console.log(`%cBlend shapes for this avatar (${names.length} total)`, 'font-weight:bold');
+    console.log(`REAL (mesh-backed, will move) - ${real.length}:`, real);
+    console.log(`STUBBED (inert placeholder, won't move) - ${stubbed.length}:`, stubbed);
+    console.table(names.map(n => ({
+      name: n,
+      real: head.mtAvatar[n].ms.length > 0,
+      meshCount: head.mtAvatar[n].ms.length,
+    })));
+    log(`Logged ${names.length} blend shapes to the console (${real.length} real, ${stubbed.length} stubbed) - open DevTools (F12) > Console tab to see them.`);
   });
 
   // --- View presets + zoom ---

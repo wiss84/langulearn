@@ -110,6 +110,15 @@ async function render() {
     hint.textContent = "No profiles yet - add one to get started.";
     profileTiles.after(hint);
   }
+
+  // Returning from avatar-select's Back button (via "+ Learn a new
+  // language" on a specific profile) should land back in that same
+  // profile's detail modal, not just the bare tile grid.
+  const openId = new URLSearchParams(window.location.search).get('open');
+  if (openId && profiles.some((p) => p.id === openId)) {
+    const fullProfile = await fetchFullProfile(openId);
+    openProfileDetail(fullProfile);
+  }
 }
 
 render();
