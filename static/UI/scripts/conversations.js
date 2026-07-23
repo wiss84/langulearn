@@ -41,6 +41,7 @@ async function selectConversation(id) {
   const conv = await fetchConversationDetail(currentProfile.id, id);
   currentConversationId = id;
   currentVoiceName = (conv.config || {}).voice_name || 'Kore';
+  currentVoiceAlias = conv.tutor_name || currentVoiceName;
   renderConversationTranscript(conv.turns || []);
 
   if (ws) {

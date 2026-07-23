@@ -1,5 +1,13 @@
 {% extends "index.html" %}
 
+{% block topbar_home %}
+<a id="homeLink" href="/profiles" class="icon-btn" title="Home">🏠</a>
+{% endblock %}
+
+{% block topbar_left_extra %}
+<span class="app-name-text">LanguLearn</span>
+{% endblock %}
+
 {% block title %}LanguLearn AI{% endblock %}
 
 {% block styles %}

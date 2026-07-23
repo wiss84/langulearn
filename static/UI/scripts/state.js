@@ -18,6 +18,8 @@
 const talkBtn = document.getElementById('talkBtn');
 const talkHint = document.getElementById('talkHint');
 const connectionDot = document.getElementById('connectionDot');
+const modelDot = document.getElementById('modelDot');
+const modelNameText = document.getElementById('modelNameText');
 const errorBanner = document.getElementById('errorBanner');
 const transcriptArea = document.getElementById('transcriptArea');
 const emptyState = document.getElementById('emptyState');
@@ -34,6 +36,8 @@ let currentProfile = null;
 let conversationsCache = [];
 let currentConversationId = null;
 var currentVoiceName = null;
+var currentVoiceAlias = null;
 
 let ws = null;
 let reconnectTimer = null;
+let modelLabels = {}; // model id -> display label, fetched once in websocket.js

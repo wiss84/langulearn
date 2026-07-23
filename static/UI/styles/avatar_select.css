@@ -140,7 +140,7 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   text-align: center;
-  margin: 6px 0 20px;
+  margin: 2px 0 8px;
 }
 
 /* Sized relative to the (much wider-capped) center grid column, so this
@@ -149,7 +149,7 @@
    since the preview shows the avatar's full body. */
 #avatarPreviewFrame {
   width: 100%;
-  max-width: 460px;
+  max-width: 320px;
   aspect-ratio: 3 / 4;
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -162,7 +162,7 @@
 }
 
 #avatarPreviewHint {
-  margin: 12px 0 4px;
+  margin: 8px 0 2px;
   font-size: 0.82rem;
   color: var(--text-muted);
   text-align: center;
@@ -173,7 +173,7 @@
   display: flex;
   gap: 18px;
   justify-content: center;
-  margin: 0 0 24px;
+  margin: 0 0 14px;
   font-size: 0.76rem;
   color: var(--text-muted);
   min-height: 1.1em;
@@ -190,10 +190,44 @@
    drift apart. */
 .tutor-center-field {
   width: 100%;
-  max-width: 460px;
+  max-width: 320px;
+  margin-top: 12px;
 }
 .tutor-center-field .text-input {
   width: 100%;
+}
+
+.field-hint {
+  margin: 6px 2px 0;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  min-height: 1.1em;
+}
+
+.difficulty-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.difficulty-option {
+  flex: 1;
+  padding: 9px 0;
+  background: var(--panel-raised);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.difficulty-option:last-child { border-right: none; }
+.difficulty-option:hover { color: var(--text); }
+.difficulty-option.selected {
+  background: var(--accent);
+  color: #fff;
 }
 
 /* --- Bottom nav --- */
@@ -201,7 +235,7 @@
 #avatarSelectNav {
   display: flex;
   justify-content: space-between;
-  padding-top: 32px;
+  padding-top: 18px;
 }
 
 #avatarSelectNav .primary-btn,

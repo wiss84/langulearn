@@ -1,5 +1,10 @@
 /* --- Top bar --- */
 
+@keyframes electricity {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 #topbar {
   display: flex;
   align-items: center;
@@ -26,6 +31,24 @@
   gap: 10px;
 }
 
+.app-name-text {
+  background: linear-gradient(
+    90deg,
+    #3b82f6 0%,
+    #3b82f6 30%,
+    #93c5fd 45%,
+    #ffffff 50%,
+    #93c5fd 55%,
+    #3b82f6 70%,
+    #3b82f6 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: electricity 3s linear infinite;
+}
+
 #connectionDot {
   width: 8px;
   height: 8px;
@@ -35,6 +58,28 @@
 }
 #connectionDot.connected { background: var(--ok); }
 #connectionDot.error { background: var(--accent); }
+
+#modelDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s ease;
+  margin-left: 14px;
+}
+/* green=connected, red=connecting/reconnecting, gray=unavailable (both
+   configured models exhausted - see live_session.py's ws_session) */
+#modelDot.connected { background: var(--ok); }
+#modelDot.connecting { background: var(--accent); }
+#modelDot.unavailable { background: var(--text-muted); }
+
+#modelNameText {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
 
 #profileControl {
   display: flex;

@@ -25,7 +25,7 @@ from pathlib import Path
 import uvicorn
 import webview
 
-from main import app  # reuse the exact same FastAPI app defined in main.py
+from backend.main import app  # reuse the exact same FastAPI app defined in main.py
 
 HOST = "127.0.0.1"
 PORT = 8000

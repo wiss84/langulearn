@@ -1,7 +1,16 @@
 // LanguLearn - Live session WebSocket connection + reconnect handling.
 
+// Model id -> display label, for the top-bar model lamp/name text (see
+// setModelLampState in transcript.js). Fetched once at page load - if a
+// session_status arrives before this resolves, the lamp just shows the raw
+// model id until the next status update relabels it.
+fetch('/api/models').then((r) => r.json()).then((data) => {
+  (data.models || []).forEach((m) => { modelLabels[m.id] = m.label; });
+}).catch(() => {});
+
 function connectWebSocket() {
   setConnectionState('connecting');
+  setModelLampState('connecting');
 
   // Each socket tracks its own manualClose flag and is compared against the
   // current `ws` before acting on any event, instead of relying on one
@@ -41,15 +50,17 @@ function connectWebSocket() {
   socket.onclose = () => {
     if (socket !== ws) return; // stale socket already superseded - don't double-reconnect
     setConnectionState('error');
+    setModelLampState('connecting');
     if (!socket.manualClose) {
       reconnectTimer = setTimeout(connectWebSocket, 2000);
     }
   };
 
   socket.onerror = () => {
-    if (socket === ws) setConnectionState('error');
+    if (socket === ws) { setConnectionState('error'); setModelLampState('connecting'); }
   };
 
+  // console.log('WS message:', msg.type, msg);
   socket.onmessage = (event) => {
     if (socket !== ws) return; // ignore messages from a superseded connection
     const msg = JSON.parse(event.data);
@@ -62,8 +73,12 @@ function connectWebSocket() {
     } else if (msg.type === 'turn_complete') {
       finalizeTurnBubbles();
       talkHint.textContent = 'Hold to speak';
+      noteConversationActivity();
+    } else if (msg.type === 'mood_change') {
+      if (window.setAvatarMood) window.setAvatarMood(msg.mood);
     } else if (msg.type === 'session_status') {
       showSessionStatus(msg.resumed);
+      setModelLampState(msg.unavailable ? 'unavailable' : 'connected', msg.model_name);
     } else if (msg.type === 'error') {
       showError(msg.message);
     }

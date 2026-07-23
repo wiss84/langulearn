@@ -29,6 +29,21 @@
         <label class="field-label" for="targetLanguageInput">Language you want to learn</label>
         <input id="targetLanguageInput" type="text" class="text-input" placeholder="e.g. Spanish, Polish, Japanese..." autocomplete="off" />
       </div>
+
+      <div class="tutor-center-field">
+        <label class="field-label" for="scenarioSelect">Type of conversation</label>
+        <select id="scenarioSelect" class="text-input"></select>
+        <p id="scenarioDescription" class="field-hint"></p>
+      </div>
+
+      <div class="tutor-center-field">
+        <label class="field-label">Difficulty</label>
+        <div id="difficultyToggle" class="difficulty-toggle">
+          <button type="button" class="difficulty-option" data-difficulty="beginner">Beginner</button>
+          <button type="button" class="difficulty-option" data-difficulty="intermediate">Intermediate</button>
+          <button type="button" class="difficulty-option" data-difficulty="advanced">Advanced</button>
+        </div>
+      </div>
     </div>
 
     <div class="tutor-column">

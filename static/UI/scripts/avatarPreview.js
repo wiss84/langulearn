@@ -157,3 +157,45 @@ export function playGreeting() {
   if (!ready || !head) return;
   head.playGesture('handup', 3, true, 700);
 }
+
+// --- Pose showcase: cycles through a few named poses so a visitor can see
+// the avatar move, right after the greeting wave finishes (started with a
+// delay below rather than immediately, since the greeting is itself a hand/
+// arm gesture - starting a pose transition on the same shoulder/arm bones
+// at the same time would fight the greeting's own animation). Loops
+// indefinitely until superseded (see poseLoopGeneration) - by picking a
+// different avatar tile, which calls this again and invalidates the
+// previous chain, or by the page unloading.
+//
+// 'namaste' is a *gesture* (gestureTemplates), not one of the 10 built-in
+// body poses (poseTemplates) - verified from the vendored source, see
+// design_plans/ROLEPLAY_HANDSFREE_AND_GESTURES.md. It needs playGesture(),
+// not setPoseFromTemplate() like the other five in this list.
+const POSE_SHOWCASE = ['side', 'hip', 'turn', 'back', 'straight'];
+const POSE_SHOWCASE_GESTURE = 'namaste';
+const POSE_SHOWCASE_GAP_MS = 4000;
+const POSE_SHOWCASE_START_DELAY_MS = 3500; // let the greeting gesture finish first
+
+let poseLoopGeneration = 0;
+
+export function stopPoseShowcase() {
+  poseLoopGeneration++; // invalidates any pending timeouts from the current loop
+}
+
+export function playPoseShowcase() {
+  if (!ready || !head) return;
+  const myGeneration = ++poseLoopGeneration; // supersedes any loop already in flight
+
+  const total = POSE_SHOWCASE.length + 1; // + the namaste gesture at the end
+  function step(i) {
+    if (myGeneration !== poseLoopGeneration || !head) return; // superseded - stop silently
+    if (i < POSE_SHOWCASE.length) {
+      head.setPoseFromTemplate(head.poseTemplates[POSE_SHOWCASE[i]]);
+    } else {
+      head.playGesture(POSE_SHOWCASE_GESTURE, 3);
+    }
+    setTimeout(() => step((i + 1) % total), POSE_SHOWCASE_GAP_MS);
+  }
+
+  setTimeout(() => step(0), POSE_SHOWCASE_START_DELAY_MS);
+}

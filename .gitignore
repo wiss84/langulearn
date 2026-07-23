@@ -15,14 +15,16 @@ venv/
 
 # Editor/OS cruft
 .vscode/
-.idea/
 .DS_Store
 Thumbs.db
 
 # Personal
 git-workflow.md
-data/
+backend/data/
 talkinghead_files/
 design_plans/
+static/avatar_test/
+scripts/
 issues.md
 logs.md
+

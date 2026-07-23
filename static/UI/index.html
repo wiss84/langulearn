@@ -18,7 +18,7 @@
 <title>{% block title %}LanguLearn{% endblock %}</title>
 <link rel="icon" type="image/x-icon" href="/LanguLearn.ico" />
 <link rel="stylesheet" href="/UI/styles/base.css?v=1" />
-<link rel="stylesheet" href="/UI/styles/topbar.css?v=1" />
+  <link rel="stylesheet" href="/UI/styles/topbar.css?v=2" />
 {% block styles %}{% endblock %}
 </head>
 <body>
@@ -26,7 +26,7 @@
   <div id="topbar">
     <div id="topbarLeft">
       {% block topbar_home %}{% endblock %}
-      <h1 id="appTitle">{% block topbar_left_extra %}LanguLearn{% endblock %}</h1>
+      <h1 id="appTitle">{% block topbar_left_extra %}<span class="app-name-text">LanguLearn</span>{% endblock %}</h1>
     </div>
     <div id="topbarRight">
       {% block topbar_right %}{% endblock %}

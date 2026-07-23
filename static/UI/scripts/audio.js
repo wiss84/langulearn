@@ -8,6 +8,21 @@ let workletNode = null;
 let micAnalyser = null;
 let isRecording = false;
 
+// The mic (getUserMedia + AudioContext + worklet graph) is acquired ONCE
+// per page load and kept alive for the whole session, rather than
+// opened/closed on every press/release. On Windows, opening a built-in
+// mic is a real hardware negotiation each time (visible as the taskbar
+// mic indicator appearing/disappearing) and took 4-7s per press - every
+// turn was paying that cost. Bluetooth mics don't show this because they
+// stay in an "active-ready" state as part of their own connection
+// profile, so this was never visible on those. Now startRecording/
+// stopRecording only toggle whether captured audio is actually sent
+// (isRecording), never whether the mic itself is open - the one-time
+// warm-up cost is paid on the FIRST press of a page session, not every
+// press. micReadyPromise dedupes concurrent calls (e.g. a fast double
+// press) so ensureMicReady's setup work only ever runs once.
+let micReadyPromise = null;
+
 let playbackContext = null;
 let playbackAnalyser = null;
 let playbackBus = null;
@@ -28,6 +43,38 @@ function registerAvatarAudioSink(audioCtx, headaudio) {
   avatarAudioSink = { audioCtx, headaudio };
   nextPlaybackTime = audioCtx.currentTime; // fresh scheduling clock for the new context
 }
+
+// --- Idle -> sleep mood ---
+// After 2 minutes with no conversation activity, the avatar's mood is set
+// to 'sleep' - a deterministic, Gemini-independent UI state (see
+// design_plans/ for why this can't be left to the set_mood tool: the tool
+// only fires at Gemini's discretion, so nothing guarantees a call to end
+// an idle period). Resuming activity always resets the mood to 'neutral'
+// first, before anything round-trips through Gemini - whatever mood
+// Gemini reflects for the new turn (if any) naturally overrides this
+// afterward. window.setAvatarMood is exposed by avatarDrawer.js and is a
+// no-op until the avatar drawer has actually been opened once.
+const IDLE_SLEEP_MS = 2 * 60 * 1000;
+let idleSleepTimer = null;
+let avatarAsleep = false;
+
+function armIdleSleepTimer() {
+  if (idleSleepTimer) clearTimeout(idleSleepTimer);
+  idleSleepTimer = setTimeout(() => {
+    avatarAsleep = true;
+    if (window.setAvatarMood) window.setAvatarMood('sleep');
+  }, IDLE_SLEEP_MS);
+}
+
+function noteConversationActivity() {
+  if (avatarAsleep) {
+    avatarAsleep = false;
+    if (window.setAvatarMood) window.setAvatarMood('neutral');
+  }
+  armIdleSleepTimer();
+}
+
+armIdleSleepTimer(); // start the clock at page load too
 
 const CHUNK_SAMPLES = 640; // ~40ms at 16kHz
 let pcmBuffer = [];
@@ -112,48 +159,68 @@ function flushPcmBuffer(force) {
   }
 }
 
+// Acquires the mic + builds the capture graph exactly once per page
+// session. Safe to call repeatedly - subsequent calls just await the same
+// in-flight (or already-resolved) promise, so a fast double-press or a
+// spacebar auto-repeat can never open a second stream.
+function ensureMicReady() {
+  if (micReadyPromise) return micReadyPromise;
+
+  micReadyPromise = (async () => {
+    micContext = new AudioContext({ sampleRate: 16000 });
+    // Mic choice is a profile-level setting, picked on /profiles (see
+    // profileDetail.js) rather than in a sidebar control here - so this
+    // reads straight from the loaded profile instead of a DOM element.
+    const deviceId = currentProfile && currentProfile.mic_device_id;
+    const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+    micStream = await navigator.mediaDevices.getUserMedia(constraints);
+    await micContext.audioWorklet.addModule('/pcm-processor.js');
+
+    const source = micContext.createMediaStreamSource(micStream);
+    micAnalyser = micContext.createAnalyser();
+    micAnalyser.fftSize = 256;
+    source.connect(micAnalyser);
+
+    workletNode = new AudioWorkletNode(micContext, 'pcm-capture-processor');
+    workletNode.port.onmessage = (event) => {
+      if (!isRecording) return; // mic stays open between turns; only forward while actually recording
+      pcmBuffer.push(event.data);
+      pcmBufferedSamples += event.data.length;
+      flushPcmBuffer(false);
+    };
+    source.connect(workletNode);
+  })();
+
+  return micReadyPromise;
+}
+
 async function startRecording() {
+  if (isRecording) return;
   if (!ws || ws.readyState !== WebSocket.OPEN) { showError('Not connected yet.'); return; }
   showError('');
-  ws.send(JSON.stringify({ type: 'start_turn' }));
 
-  micContext = new AudioContext({ sampleRate: 16000 });
-  // Mic choice is a profile-level setting now, picked on /profiles (see
-  // profileDetail.js) rather than in a sidebar control here - so this
-  // reads straight from the loaded profile instead of a DOM element.
-  const deviceId = currentProfile && currentProfile.mic_device_id;
-  const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
-  micStream = await navigator.mediaDevices.getUserMedia(constraints);
-  await micContext.audioWorklet.addModule('/pcm-processor.js');
+  try {
+    await ensureMicReady();
+  } catch (e) {
+    showError('Could not access the microphone.');
+    console.error(e);
+    micReadyPromise = null; // allow a retry on the next press
+    return;
+  }
 
-  const source = micContext.createMediaStreamSource(micStream);
-  micAnalyser = micContext.createAnalyser();
-  micAnalyser.fftSize = 256;
-  source.connect(micAnalyser);
-
-  workletNode = new AudioWorkletNode(micContext, 'pcm-capture-processor');
+  noteConversationActivity();
   pcmBuffer = [];
   pcmBufferedSamples = 0;
-  workletNode.port.onmessage = (event) => {
-    pcmBuffer.push(event.data);
-    pcmBufferedSamples += event.data.length;
-    flushPcmBuffer(false);
-  };
-  source.connect(workletNode);
-
   isRecording = true;
+  ws.send(JSON.stringify({ type: 'start_turn' }));
   talkBtn.classList.add('recording');
   talkHint.textContent = 'Listening...';
 }
 
 function stopRecording() {
-  if (!micStream) return;
-  flushPcmBuffer(true);
-  micStream.getTracks().forEach((t) => t.stop());
-  workletNode && workletNode.disconnect();
-  micContext && micContext.close();
-  micStream = null;
+  if (!isRecording) return;
   isRecording = false;
+  flushPcmBuffer(true);
   talkBtn.classList.remove('recording');
 
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -164,9 +231,38 @@ function stopRecording() {
 
 talkBtn.addEventListener('mousedown', startRecording);
 talkBtn.addEventListener('mouseup', stopRecording);
-talkBtn.addEventListener('mouseleave', () => { if (micStream) stopRecording(); });
+talkBtn.addEventListener('mouseleave', () => { if (isRecording) stopRecording(); });
 talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
 talkBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+// --- Spacebar push-to-talk ---
+// Mirrors the talk button exactly (same startRecording/stopRecording),
+// guarded so it doesn't fire while the user is typing in a text field
+// (e.g. renaming a conversation) and doesn't re-trigger on key-repeat
+// while held down.
+function isTypingTarget(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
+  e.preventDefault(); // stop the page from scrolling on spacebar
+  startRecording();
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code !== 'Space' || isTypingTarget(e.target)) return;
+  e.preventDefault();
+  stopRecording();
+});
+
+// Release the mic on page unload so it doesn't stay flagged "in use"
+// after navigating away or closing the app.
+window.addEventListener('beforeunload', () => {
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+});
 
 // --- Waveform visualizer ---
 

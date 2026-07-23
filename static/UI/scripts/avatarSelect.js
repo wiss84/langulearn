@@ -13,7 +13,7 @@
 //    collect, and Back returns to /profiles (reopening that same profile's
 //    detail modal) rather than /landing.
 
-import { initAvatarHead, loadAvatarAndPlaySample, playGreeting } from '/UI/scripts/avatarPreview.js';
+import { initAvatarHead, loadAvatarAndPlaySample, playGreeting, playPoseShowcase } from '/UI/scripts/avatarPreview.js';
 
 const femaleGrid = document.getElementById('femaleGrid');
 const maleGrid = document.getElementById('maleGrid');
@@ -21,15 +21,21 @@ const avatarPreviewEl = document.getElementById('avatarPreview');
 const avatarPreviewHint = document.getElementById('avatarPreviewHint');
 const avatarVoiceMeta = document.getElementById('avatarVoiceMeta');
 const targetLanguageInput = document.getElementById('targetLanguageInput');
+const scenarioSelect = document.getElementById('scenarioSelect');
+const scenarioDescription = document.getElementById('scenarioDescription');
+const difficultyToggle = document.getElementById('difficultyToggle');
 const backBtn = document.getElementById('avatarBackBtn');
 const nextBtn = document.getElementById('avatarNextBtn');
 
 const DRAFT_KEY = 'landingDraft';
 const existingProfileId = new URLSearchParams(window.location.search).get('profile_id');
+const DEFAULT_DIFFICULTY = 'intermediate';
 
 let selectedVoice = null;
 let availableAvatars = [];
 let voicesData = [];
+let scenariosData = [];
+let selectedDifficulty = DEFAULT_DIFFICULTY;
 
 function updateNextEnabled() {
   nextBtn.disabled = !(selectedVoice && targetLanguageInput.value.trim());
@@ -48,11 +54,11 @@ function renderGrid(container, voices) {
 
     const img = document.createElement('img');
     img.src = `/photos/${v.name}.webp`;
-    img.alt = v.name;
+    img.alt = v.alias || v.name;
 
     const fallback = document.createElement('div');
     fallback.className = 'tutor-tile-fallback';
-    fallback.textContent = v.name[0];
+    fallback.textContent = (v.alias || v.name)[0];
     img.addEventListener('error', () => {
       img.remove();
       fallback.style.display = 'flex';
@@ -60,7 +66,7 @@ function renderGrid(container, voices) {
 
     const label = document.createElement('span');
     label.className = 'tutor-name';
-    label.textContent = v.name;
+    label.textContent = v.alias || v.name;
 
     tile.appendChild(img);
     tile.appendChild(fallback);
@@ -85,17 +91,19 @@ async function selectAvatar(voiceName, tileEl) {
   if (tileEl) tileEl.classList.add('selected');
 
   const voiceInfo = voicesData.find((v) => v.name === voiceName);
+  const displayName = voiceInfo ? (voiceInfo.alias || voiceName) : voiceName;
   avatarVoiceMeta.innerHTML = voiceInfo
     ? `<span>Tone: <strong>${voiceInfo.descriptor}</strong></span><span>Pitch: <strong>${voiceInfo.pitch}</strong></span>`
     : '';
 
-  avatarPreviewHint.textContent = `Loading ${voiceName}...`;
+  avatarPreviewHint.textContent = `Loading ${displayName}...`;
   try {
     await loadAvatarAndPlaySample(voiceName, (pct) => {
-      avatarPreviewHint.textContent = `Loading ${voiceName}... ${pct}%`;
+      avatarPreviewHint.textContent = `Loading ${displayName}... ${pct}%`;
     });
-    avatarPreviewHint.textContent = voiceName;
+    avatarPreviewHint.textContent = displayName;
     playGreeting();
+    playPoseShowcase();
   } catch (e) {
     avatarPreviewHint.textContent = 'Could not load this avatar - try another.';
     console.error(e);
@@ -104,6 +112,48 @@ async function selectAvatar(voiceName, tileEl) {
 }
 
 targetLanguageInput.addEventListener('input', updateNextEnabled);
+
+function renderScenarios() {
+  scenarioSelect.innerHTML = '';
+  scenariosData.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.label;
+    scenarioSelect.appendChild(opt);
+  });
+  updateScenarioDescription();
+}
+
+function updateScenarioDescription() {
+  const s = scenariosData.find((x) => x.id === scenarioSelect.value);
+  scenarioDescription.textContent = s ? s.description : '';
+}
+
+scenarioSelect.addEventListener('change', updateScenarioDescription);
+
+function selectDifficulty(difficulty) {
+  selectedDifficulty = difficulty;
+  difficultyToggle.querySelectorAll('.difficulty-option').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.difficulty === difficulty);
+  });
+}
+
+difficultyToggle.querySelectorAll('.difficulty-option').forEach((btn) => {
+  btn.addEventListener('click', () => selectDifficulty(btn.dataset.difficulty));
+});
+
+// Scenario (skipped when it's the default Free Learning setting - nothing
+// interesting to show) + difficulty, both fixed at creation like every
+// other conversation setting - see design_plans/ROLEPLAY_HANDSFREE_AND_GESTURES.md.
+function buildConversationName() {
+  const target = targetLanguageInput.value.trim() || 'Conversation';
+  const difficultyLabel = selectedDifficulty.charAt(0).toUpperCase() + selectedDifficulty.slice(1);
+  const scenarioId = scenarioSelect.value;
+  const scenario = scenariosData.find((s) => s.id === scenarioId);
+  const parts = [target, difficultyLabel];
+  if (scenario && scenario.label !== 'Free Learning') parts.push(scenario.label);
+  return parts.join(' \u00b7 ');
+}
 
 backBtn.addEventListener('click', () => {
   // Returning to a profile's detail modal (not just the bare /profiles
@@ -123,7 +173,9 @@ async function createConversationForProfile(profileId, nativeLanguage, modelName
       native_language: nativeLanguage,
       target_language: targetLanguageInput.value.trim(),
       model_name: modelName,
-      name: targetLanguageInput.value.trim() || 'Default',
+      scenario: scenarioSelect.value,
+      difficulty: selectedDifficulty,
+      name: buildConversationName(),
     }),
   });
   if (!convRes.ok) throw new Error('Could not create the conversation.');
@@ -191,11 +243,18 @@ async function init() {
   // belt-and-suspenders guarantee.
   targetLanguageInput.value = '';
 
-  const [voicesRes, avatarsRes] = await Promise.all([fetch('/api/voices'), fetch('/api/avatars')]);
+  const [voicesRes, avatarsRes, scenariosRes] = await Promise.all([fetch('/api/voices'), fetch('/api/avatars'), fetch('/api/scenarios')]);
   const voicesJson = await voicesRes.json();
   const avatarsJson = await avatarsRes.json();
+  const scenariosJson = await scenariosRes.json();
   voicesData = voicesJson.voices;
   availableAvatars = avatarsJson.available;
+  scenariosData = scenariosJson.scenarios;
+
+  renderScenarios();
+  if (scenariosJson.default) scenarioSelect.value = scenariosJson.default;
+  updateScenarioDescription();
+  selectDifficulty(DEFAULT_DIFFICULTY);
 
   renderGrid(femaleGrid, voicesData.filter((v) => v.gender === 'Female'));
   renderGrid(maleGrid, voicesData.filter((v) => v.gender === 'Male'));

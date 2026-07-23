@@ -44,7 +44,7 @@ def is_transient_error(e: Exception) -> bool:
     if type(e).__name__ == "ServerError":
         return True
     text = str(e)
-    return any(marker in text for marker in ("INTERNAL", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "429", " 500", " 503"))
+    return any(marker in text.upper() for marker in ("INTERNAL", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "429", " 500", " 503"))
 
 
 def parse_retry_delay(text: str) -> float | None:
@@ -68,17 +68,19 @@ def call_with_retry(
     exponential backoff (or Google's own suggested retryDelay when a 429
     response includes one). Re-raises immediately on a non-transient
     error, and re-raises the last error once max_retries is exhausted -
-    the caller decides what "give up" means (main.py's summarize_conversation
-    wraps this in its own try/except and just logs, since a skipped
-    summary fold isn't fatal and will be retried next time one is due).
+    the caller decides what "give up" means (summarization.py's
+    summarize_conversation wraps this in its own try/except and just logs,
+    since a skipped summary fold isn't fatal and will be retried next time
+    one is due).
 
     Synchronous by design - built for the sync google-genai text-generation
     call used by summarization, which itself runs inside asyncio.to_thread
     so a blocking time.sleep() here doesn't stall the event loop. The Live
     API connection has its own async retry loop instead
-    (main.py's _connect_live_with_retries) since it manages an async
-    context manager rather than a plain function call - but both share
-    this module's is_transient_error/parse_retry_delay for classification.
+    (live_session.py's _connect_live_with_retries) since it manages an
+    async context manager rather than a plain function call - but both
+    share this module's is_transient_error/parse_retry_delay for
+    classification.
     """
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):

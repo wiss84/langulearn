@@ -41,98 +41,98 @@ OUTPUT_DIR = Path(__file__).parent.parent / "static" / "voices"
 # Comprehensive 30-voice registry containing name, tone descriptor, pitch profile, 
 # and a unique language-learning greeting phrase mapped explicitly to each option.
 VOICE_OPTIONS = [
-    # {
-    #     "name": "Puck", "tone": "Upbeat", "pitch": "Mid-range",
-    #     "text": "Hey there! Ready to shake off the rust and jump into some vocabulary practice today? Let's do this!"
-    # },
-    # {
-    #     "name": "Charon", "tone": "Informative", "pitch": "Mid-to-low",
-    #     "text": "Welcome back. Today we'll cover real-world conversational phrases to help you speak more naturally."
-    # },
-    # {
-    #     "name": "Kore", "tone": "Firm", "pitch": "Mid-to-high",
-    #     "text": "Let's focus on clear pronunciation today. Listen closely to my accent and try to match it!"
-    # },
-    # {
-    #     "name": "Fenrir", "tone": "Excitable", "pitch": "Mid-range",
-    #     "text": "Awesome to see you! I've got some great new idioms lined up for us today. Are you ready?"
-    # },
-    # {
-    #     "name": "Aoede", "tone": "Breezy", "pitch": "Mid-range",
-    #     "text": "Hi! Let's take it easy today and just practice a relaxed, everyday conversation. Tell me about your week."
-    # },
-    # {
-    #     "name": "Zephyr", "tone": "Bright", "pitch": "Mid-range",
-    #     "text": "Hello! I am so excited to help you practice your language skills today. What should we learn first?"
-    # },
-    # {
-    #     "name": "Orus", "tone": "Firm", "pitch": "Mid-to-low",
-    #     "text": "Consistent practice is the key to fluency. Let's begin today's lesson with a quick review."
-    # },
-    # {
-    #     "name": "Autonoe", "tone": "Bright", "pitch": "High",
-    #     "text": "Hi friend! Don't worry about making mistakes today, that's exactly how we learn and improve!"
-    # },
-    # {
-    #     "name": "Umbriel", "tone": "Easy-going", "pitch": "Mid-range",
-    #     "text": "Hey, let's keep things casual today. We can just chat about your favorite hobbies and interests."
-    # },
-    # {
-    #     "name": "Erinome", "tone": "Clear", "pitch": "Mid-to-high",
-    #     "text": "Greetings. Today's goal is to sharpen your listening comprehension. Let me know if I should slow down."
-    # },
-    # {
-    #     "name": "Laomedeia", "tone": "Upbeat", "pitch": "Mid-range",
-    #     "text": "Hey! Time to level up your speaking confidence. I'll guide you through it every step of the way."
-    # },
-    # {
-    #     "name": "Schedar", "tone": "Even", "pitch": "Mid-to-low",
-    #     "text": "Welcome. We will work through our grammar exercises at whatever pace feels most comfortable for you."
-    # },
-    # {
-    #     "name": "Achird", "tone": "Friendly", "pitch": "Mid-to-high",
-    #     "text": "Hi there! I'm really looking forward to practicing with you today. Ready to get started?"
-    # },
-    # {
-    #     "name": "Sadachbia", "tone": "Lively", "pitch": "Low",
-    #     "text": "Hey, glad you made it! Let's dive right into some high-energy dialogue practice and test your speed."
-    # },
-    # {
-    #     "name": "Enceladus", "tone": "Breathy", "pitch": "Mid-range",
-    #     "text": "Hello. Let's focus on the subtle rhythms of speech today to help you sound much more native."
-    # },
-    # {
-    #     "name": "Algieba", "tone": "Smooth", "pitch": "Mid-to-low",
-    #     "text": "Welcome back. Take a deep breath, relax, and let's practice your sentence flow together."
-    # },
-    # {
-    #     "name": "Algenib", "tone": "Gravelly", "pitch": "Low",
-    #     "text": "Let's cut right to the chase today. We're breaking down advanced listening exercises."
-    # },
-    # {
-    #     "name": "Achernar", "tone": "Soft", "pitch": "Mid-range",
-    #     "text": "Hello there. I'm here to give you a supportive space to practice. Let's try some simple phrasing."
-    # },
-    # {
-    #     "name": "Gacrux", "tone": "Mature", "pitch": "Mid-to-low",
-    #     "text": "Good day. Language learning is a journey, and I am honored to help you guide your speech patterns."
-    # },
-    # {
-    #     "name": "Zubenelgenubi", "tone": "Casual", "pitch": "Low",
-    #     "text": "Hey, what's up? Let's skip the textbook stuff today and practice real slang you'll actually use."
-    # },
-    # {
-    #     "name": "Sadaltager", "tone": "Knowledgeable", "pitch": "Mid-range",
-    #     "text": "Welcome. If you have any questions about complex sentence structures, I'm fully prepared to break them down."
-    # },
-    # {
-    #     "name": "Leda", "tone": "Youthful", "pitch": "High",
-    #     "text": "Hi there! Let's play a language game today to make practicing our verbs way more fun."
-    # },
-    # {
-    #     "name": "Callirrhoe", "tone": "Easy-going", "pitch": "Mid-to-high",
-    #     "text": "Hey! No pressure today, just continuous talking practice to help you overcome any hesitation."
-    # },
+    {
+        "name": "Puck", "tone": "Upbeat", "pitch": "Mid-range",
+        "text": "Hey there! Ready to shake off the rust and jump into some vocabulary practice today? Let's do this!"
+    },
+    {
+        "name": "Charon", "tone": "Informative", "pitch": "Mid-to-low",
+        "text": "Welcome back. Today we'll cover real-world conversational phrases to help you speak more naturally."
+    },
+    {
+        "name": "Kore", "tone": "Firm", "pitch": "Mid-to-high",
+        "text": "Let's focus on clear pronunciation today. Listen closely to my accent and try to match it!"
+    },
+    {
+        "name": "Fenrir", "tone": "Excitable", "pitch": "Mid-range",
+        "text": "Awesome to see you! I've got some great new idioms lined up for us today. Are you ready?"
+    },
+    {
+        "name": "Aoede", "tone": "Breezy", "pitch": "Mid-range",
+        "text": "Hi! Let's take it easy today and just practice a relaxed, everyday conversation. Tell me about your week."
+    },
+    {
+        "name": "Zephyr", "tone": "Bright", "pitch": "Mid-range",
+        "text": "Hello! I am so excited to help you practice your language skills today. What should we learn first?"
+    },
+    {
+        "name": "Orus", "tone": "Firm", "pitch": "Mid-to-low",
+        "text": "Consistent practice is the key to fluency. Let's begin today's lesson with a quick review."
+    },
+    {
+        "name": "Autonoe", "tone": "Bright", "pitch": "High",
+        "text": "Hi friend! Don't worry about making mistakes today, that's exactly how we learn and improve!"
+    },
+    {
+        "name": "Umbriel", "tone": "Easy-going", "pitch": "Mid-range",
+        "text": "Hey, let's keep things casual today. We can just chat about your favorite hobbies and interests."
+    },
+    {
+        "name": "Erinome", "tone": "Clear", "pitch": "Mid-to-high",
+        "text": "Greetings. Today's goal is to sharpen your listening comprehension. Let me know if I should slow down."
+    },
+    {
+        "name": "Laomedeia", "tone": "Upbeat", "pitch": "Mid-range",
+        "text": "Hey! Time to level up your speaking confidence. I'll guide you through it every step of the way."
+    },
+    {
+        "name": "Schedar", "tone": "Even", "pitch": "Mid-to-low",
+        "text": "Welcome. We will work through our grammar exercises at whatever pace feels most comfortable for you."
+    },
+    {
+        "name": "Achird", "tone": "Friendly", "pitch": "Mid-to-high",
+        "text": "Hi there! I'm really looking forward to practicing with you today. Ready to get started?"
+    },
+    {
+        "name": "Sadachbia", "tone": "Lively", "pitch": "Low",
+        "text": "Hey, glad you made it! Let's dive right into some high-energy dialogue practice and test your speed."
+    },
+    {
+        "name": "Enceladus", "tone": "Breathy", "pitch": "Mid-range",
+        "text": "Hello. Let's focus on the subtle rhythms of speech today to help you sound much more native."
+    },
+    {
+        "name": "Algieba", "tone": "Smooth", "pitch": "Mid-to-low",
+        "text": "Welcome back. Take a deep breath, relax, and let's practice your sentence flow together."
+    },
+    {
+        "name": "Algenib", "tone": "Gravelly", "pitch": "Low",
+        "text": "Let's cut right to the chase today. We're breaking down advanced listening exercises."
+    },
+    {
+        "name": "Achernar", "tone": "Soft", "pitch": "Mid-range",
+        "text": "Hello there. I'm here to give you a supportive space to practice. Let's try some simple phrasing."
+    },
+    {
+        "name": "Gacrux", "tone": "Mature", "pitch": "Mid-to-low",
+        "text": "Good day. Language learning is a journey, and I am honored to help you guide your speech patterns."
+    },
+    {
+        "name": "Zubenelgenubi", "tone": "Casual", "pitch": "Low",
+        "text": "Hey, what's up? Let's skip the textbook stuff today and practice real slang you'll actually use."
+    },
+    {
+        "name": "Sadaltager", "tone": "Knowledgeable", "pitch": "Mid-range",
+        "text": "Welcome. If you have any questions about complex sentence structures, I'm fully prepared to break them down."
+    },
+    {
+        "name": "Leda", "tone": "Youthful", "pitch": "High",
+        "text": "Hi there! Let's play a language game today to make practicing our verbs way more fun."
+    },
+    {
+        "name": "Callirrhoe", "tone": "Easy-going", "pitch": "Mid-to-high",
+        "text": "Hey! No pressure today, just continuous talking practice to help you overcome any hesitation."
+    },
     {
         "name": "Iapetus", "tone": "Clear", "pitch": "Mid-to-low",
         "text": "Pronunciation clarity is our priority today. Let's carefully break down these tricky vowel sounds."

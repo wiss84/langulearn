@@ -40,6 +40,31 @@
   <button id="btnZoomIn">+</button>
   <button id="btnBg" style="margin-left:16px">Toggle background (black/white)</button>
 </div>
+<div id="controls">
+  <span style="opacity:0.7">Poses (full-body stances, auto-switches to Full view):</span>
+  <button data-pose="side">side</button>
+  <button data-pose="hip">hip</button>
+  <button data-pose="turn">turn</button>
+  <button data-pose="bend">bend</button>
+  <button data-pose="back">back</button>
+  <button data-pose="straight">straight</button>
+  <button data-pose="wide">wide</button>
+  <button data-pose="oneknee">oneknee</button>
+  <button data-pose="kneel">kneel</button>
+  <button data-pose="sitting">sitting</button>
+</div>
+<div id="controls">
+  <span style="opacity:0.7">Gestures (hand/arm, plays 4s then reverts, auto-switches to Full view):</span>
+  <button data-gesture="handup">handup</button>
+  <button data-gesture="index">index</button>
+  <button data-gesture="ok">ok</button>
+  <button data-gesture="thumbup">thumbup</button>
+  <button data-gesture="thumbdown">thumbdown</button>
+  <button data-gesture="side">side</button>
+  <button data-gesture="shrug">shrug</button>
+  <button data-gesture="namaste">namaste</button>
+  <button id="btnStopGesture">Stop gesture</button>
+</div>
 <div id="status">Loading...</div>
 
 <script type="importmap">
@@ -403,6 +428,40 @@
   document.getElementById('btnZoomOut').addEventListener('click', () => {
     zoomOffset += 0.5;
     applyView();
+  });
+
+  // --- Pose + gesture testing ---
+  // setPoseFromTemplate takes the actual template OBJECT, not a name string
+  // (confirmed from the vendored source - playPose() is a different thing
+  // entirely, for loading external Mixamo FBX files by URL, not for these
+  // named built-in poseTemplates entries). Poses/gestures both auto-switch
+  // to the Full view first since neither is visible when cropped to Head.
+  document.querySelectorAll('button[data-pose]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!head) { log("Load an avatar first."); return; }
+      currentView = 'full';
+      zoomOffset = 0;
+      applyView();
+      head.setPoseFromTemplate(head.poseTemplates[btn.dataset.pose]);
+      log(`Pose: ${btn.dataset.pose}`);
+    });
+  });
+
+  document.querySelectorAll('button[data-gesture]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!head) { log("Load an avatar first."); return; }
+      currentView = 'full';
+      zoomOffset = 0;
+      applyView();
+      head.playGesture(btn.dataset.gesture, 4);
+      log(`Gesture: ${btn.dataset.gesture} (plays 4s, then reverts)`);
+    });
+  });
+
+  document.getElementById('btnStopGesture').addEventListener('click', () => {
+    if (!head) return;
+    head.stopGesture();
+    log("Gesture stopped.");
   });
 
   // --- Background toggle (for capturing preview images on white vs black) ---

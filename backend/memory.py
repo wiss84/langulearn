@@ -4,7 +4,7 @@ SQLite-backed conversation memory.
 Two different access patterns are in play, so two stores are used rather
 than one: `data/profiles.json` keeps the small, frequently-rewritten
 metadata (profile identity, mic choice, which conversation is active) - that
-part is unchanged and lives in main.py. This module holds the growing,
+part lives in profiles_store.py. This module holds the growing,
 append-heavy memory data instead: per-profile conversations, each one's
 session-resumption state, its transcript turns, and a rolling summary.
 Transcripts are unbounded time-series that would force a full-file rewrite
@@ -26,9 +26,8 @@ DATA_DIR = Path(__file__).parent / "data"
 DB_FILE = DATA_DIR / "memory.db"
 
 # How often (in inserted turn rows - two per completed back-and-forth) to
-# fold recent turns into the rolling summary. Chosen as a reasonable
-# starting point; not load-bearing enough to need to be configurable yet.
-SUMMARY_FOLD_EVERY_N_TURNS = 15
+# fold recent turns into the rolling summary. 16 turns × 2 rows = 32.
+SUMMARY_FOLD_EVERY_N_TURNS = 32
 
 
 def _connect() -> sqlite3.Connection:

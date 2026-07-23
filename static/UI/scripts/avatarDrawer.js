@@ -39,6 +39,38 @@ let headaudio = null;
 let avatarReady = false;
 let isMaximized = false;
 
+// Exposed on window (see the module-vs-classic-script note at the top of
+// this file) so websocket.js and audio.js - both plain classic scripts -
+// can drive the avatar's expression. No-ops until the drawer has been
+// opened at least once (head is null until ensureAvatarReady() runs, e.g.
+// on cameraToggleBtn's first click) - callers don't need to check
+// readiness themselves.
+//
+// Each mood also fires a matching hand/arm gesture where one makes sense -
+// mapping decided by trying every one of TalkingHead's 8 built-in gestures
+// on static/avatar_test/test.html (see
+// design_plans/ROLEPLAY_HANDSFREE_AND_GESTURES.md). 'sad' maps to
+// thumbdown despite reading a little blunt for what's meant to be a gentle
+// correction - the library has nothing softer (no headshake/wince
+// equivalent among the 8), and thumbdown was judged the closest fit.
+// 'neutral' intentionally has no entry, so no gesture fires for it - just
+// the facial mood change.
+const MOOD_GESTURES = {
+  happy: 'thumbup',
+  love: 'namaste',
+  fear: 'shrug',
+  sad: 'thumbdown',
+};
+const MOOD_GESTURE_DURATION_S = 2.5;
+
+function setAvatarMood(mood) {
+  if (!head) return;
+  if (typeof head.setMood === 'function') head.setMood(mood);
+  const gesture = MOOD_GESTURES[mood];
+  if (gesture && typeof head.playGesture === 'function') head.playGesture(gesture, MOOD_GESTURE_DURATION_S);
+}
+window.setAvatarMood = setAvatarMood;
+
 // Same VRoid/ARKit blend-shape gap workaround as avatarPreview.js - see
 // that file for the full explanation. Duplicated rather than shared since
 // these are two separate pages/documents with no module loader connecting
