@@ -1,0 +1,25 @@
+<div id="profileDetailOverlay">
+  <div id="profileDetailModal">
+    <h2 id="profileDetailName"></h2>
+
+    <div class="sidebar-section">
+      <h3>Microphone</h3>
+      <div class="field-row">
+        <select id="micSelect"><option value="">Default microphone</option></select>
+        <button id="refreshMicsBtn" class="icon-btn" type="button" title="Refresh microphone list">&#8635;</button>
+      </div>
+      <button id="calibrateMicBtn" class="pill-btn" type="button" style="width:100%; margin-top:8px;">Calibrate mic</button>
+      <p class="field-hint" id="calibrateMicStatus"></p>
+    </div>
+
+    <hr class="modal-divider" />
+
+    <div class="sidebar-section">
+      <h3>Languages</h3>
+      <div id="profileDetailLanguages"></div>
+      <button id="learnNewLanguageBtn" class="pill-btn" type="button" style="width:100%; margin-top:10px;">+ Learn a new language</button>
+    </div>
+
+    <button id="closeProfileDetailBtn" class="pill-btn" type="button" style="width:100%; margin-top:18px;">Close</button>
+  </div>
+</div>

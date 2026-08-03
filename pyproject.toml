@@ -1,0 +1,118 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langulearn"
+dynamic = ["version"]
+description = "A self-hosted, real-time voice AI language tutor with a 3D talking avatar, built on the Gemini Live API."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Wissam Metawee" }]
+keywords = ["language-learning", "ai-tutor", "gemini", "voice-ai", "talking-avatar", "speech-to-speech"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Education",
+    "License :: Other/Proprietary License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Education",
+    "Framework :: FastAPI",
+]
+
+# webrtcvad-wheels and resemblyzer are deliberately NOT listed here - see
+# cli.py's bootstrap and requirements.txt's own comment for why they can't
+# be plain dependencies (pip has no way to substitute webrtcvad-wheels for
+# resemblyzer's own webrtcvad requirement). `langulearn setup` (or a plain
+# first `langulearn` run) installs them separately.
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "google-genai",
+    "websockets",
+    "numpy",
+    "pywebview",
+    "protobuf>=4.25.8,<7.0.0",
+    "googleapis-common-protos>=1.5.5",
+    "jinja2>=3.1.4",
+    "platformdirs",
+    "python-docx>=1.1.0",
+    "torch",
+    "librosa",
+    "scipy",
+    "rich",
+    "pywin32; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-cov", "httpx", "httpx2", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/wiss84/langulearn"
+Repository = "https://github.com/wiss84/langulearn"
+Issues = "https://github.com/wiss84/langulearn/issues"
+
+[project.scripts]
+langulearn = "langulearn.cli:main"
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version is langulearn/constants.py's
+# APP_VERSION - read directly from that attribute at build time, so
+# there's exactly one place to bump per release instead of keeping this
+# field manually in sync with a separate hardcoded string.
+version = { attr = "langulearn.constants.APP_VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["langulearn*"]
+
+[tool.setuptools.package-data]
+# Everything under langulearn/static/ (UI/, vendor/, pcm-processor.js, the
+# platform icons) ships with the wheel - avatar/voice/photo assets do NOT
+# live here at all (see constants.py's ASSETS_DIR and cli.py) since they're
+# ~450MB and downloaded separately on first run instead.
+langulearn = ["static/**/*"]
+
+# ---------------------------------------------------------------------------
+# Testing
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--strict-markers"
+markers = [
+    "unit: fast, pure-logic tests (no I/O)",
+    "integration: tests that use the filesystem, SQLite, or a mocked websocket session",
+]
+
+[tool.coverage.run]
+source = ["langulearn"]
+omit = [
+    "langulearn/scenarios/*",   # prompt text only, no logic to cover
+    "langulearn/cli.py",        # platform-specific shortcut/download code - exercised manually, not under test
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+exclude = ["langulearn/static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = [
+    "E501",  # line length is handled loosely via line-length above, not enforced as an error
+]

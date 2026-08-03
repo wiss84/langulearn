@@ -1,12 +1,33 @@
+# NOTE: pyproject.toml is now the canonical dependency list (see its
+# [project.dependencies]) - this file is kept only as a plain-text mirror
+# for anyone doing an old-style `pip install -r requirements.txt` against a
+# source checkout instead of `pip install -e .`. If they ever drift apart,
+# trust pyproject.toml.
+
 fastapi
 uvicorn[standard]
 google-genai
-python-dotenv
 websockets
-sounddevice
 numpy
 pywebview
-faster-whisper
 protobuf<7.0.0,>=4.25.8
 googleapis-common-protos>=1.5.5
 jinja2>=3.1.4
+platformdirs
+python-docx>=1.1.0
+torch
+librosa
+scipy
+rich
+pywin32; sys_platform == "win32"
+
+# resemblyzer's own dependency list pulls in webrtcvad, which has no
+# prebuilt Windows wheel and fails to build without the full Visual
+# Studio C++ Build Tools. `langulearn setup` (see cli.py) installs these
+# two automatically - webrtcvad-wheels installs under the same import name
+# (webrtcvad), so resemblyzer's internal import still resolves; --no-deps
+# means resemblyzer's other deps (torch/librosa/scipy/numpy) need to
+# already be present, hence them being listed explicitly above. If
+# installing by hand instead of via `langulearn setup`:
+#   pip install webrtcvad-wheels
+#   pip install resemblyzer --no-deps

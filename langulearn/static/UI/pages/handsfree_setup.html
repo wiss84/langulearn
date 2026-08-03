@@ -1,0 +1,69 @@
+{% extends "index.html" %}
+
+{% block topbar_home %}
+<a id="homeLink" href="/" class="icon-btn" title="Back to learning">🏠</a>
+{% endblock %}
+
+{% block topbar_left_extra %}
+<span class="app-name-text">LanguLearn</span>
+{% endblock %}
+
+{% block title %}Hands-free setup - LanguLearn AI{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/handsfree_setup.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="hfSetupWrap">
+  <div id="hfSetupCard">
+    <h1 id="hfSetupTitle">Welcome to the hands-free setup page</h1>
+    <p id="hfSetupIntro">To be able to use hands-free mode, you'll need to set up and pass the following audio checks:</p>
+
+    <section class="hf-setup-section">
+      <h2>Microphone</h2>
+      <div class="field-row">
+        <select id="micSelect"><option value="">Default microphone</option></select>
+        <button id="refreshMicsBtn" class="icon-btn" type="button" title="Refresh microphone list">&#8635;</button>
+      </div>
+      <button id="calibrateMicBtn" class="pill-btn" type="button" style="width:100%; margin-top:8px;">Calibrate mic</button>
+      <p class="field-hint" id="calibrateMicStatus"></p>
+    </section>
+
+    <hr class="modal-divider" />
+
+    <section class="hf-setup-section">
+      <h2 class="hf-setup-center-header">Voice enrollment setup</h2>
+      <p class="field-hint">For each sentence below, click the mic icon and read it out loud, then click the mic icon again when you're done - do this once for all 3 sentences, then click Save.</p>
+      <p class="field-hint" id="voiceEnrollmentBanner">Checking voice recognition model...</p>
+      <div id="voiceEnrollmentRows"></div>
+      <button id="saveEnrollmentBtn" class="pill-btn" type="button" style="width:100%; margin-top:8px;" disabled>Save</button>
+    </section>
+
+    <hr class="modal-divider" />
+
+    <section class="hf-setup-section">
+      <h2 class="hf-setup-center-header">Speaker threshold setup tests</h2>
+      <p class="field-hint">Read each sentence out loud when it appears below - this measures how your voice actually sounds to the tutor during a real conversation, so hands-free mode can tell you apart from anyone else in the room.</p>
+      <button id="startTestsBtn" class="pill-btn" type="button" style="width:100%;" disabled>Start tests</button>
+      <div id="thresholdTestLog"></div>
+    </section>
+
+    <hr class="modal-divider" />
+
+    <section class="hf-setup-section" id="hfSetupDoneSection" style="display:none;">
+      <p id="hfSetupDoneMessage">Thank you for taking the time - you're all set. Click Continue to go back to your session and re-click the hands-free button to start your lesson with the tutor using hands-free mode.</p>
+    </section>
+
+    <div id="hfSetupNav">
+      <button id="hfContinueBtn" class="primary-btn" type="button" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/handsfreeSetup.js"></script>
+{% endblock %}

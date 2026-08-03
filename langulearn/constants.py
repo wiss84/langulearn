@@ -1,0 +1,543 @@
+"""Static configuration: prompt templates, tool declarations, voice/model
+option lists, defaults, and file paths shared across the app. No logic
+lives here - just data other modules import.
+"""
+
+import shutil
+from pathlib import Path
+
+from google.genai import types
+from platformdirs import user_data_dir
+
+# Shared across every scenario (see the scenarios/ package) - a scenario
+# module only holds its persona/setting text; this correction mandate and
+# native-language fallback behavior apply identically regardless of setting,
+# so it's appended after the scenario template rather than duplicated in
+# each of the scenario files. {name}/{native_language}/{target_language}
+# filled in the same way as the scenario template itself.
+CORE_TUTOR_RULES = (
+    "\n\nYou are {tutor_name}, an {target_language} tutor. Always introduce yourself as {tutor_name} when meeting {name} for the first time.\n\n"
+    "CORE RULES YOU MUST FOLLOW:\n"
+    "Always correct mistakes in {target_language}. If {name} "
+    "makes ANY error (grammar, vocabulary, pronunciation, verb form, etc.), do "
+    "NOT praise the attempt. If unsure, treat it as incorrect and ask them to try "
+    "again.\n\n"
+    "For every mistake:\n"
+    "1. Say in {native_language} that it was incorrect.\n"
+    "2. Give the correct version.\n"
+    "3. Ask {name} to repeat it.\n"
+    "4. Keep correcting and asking until they say it correctly, or after 3 genuine "
+    "attempts. After the 3rd failed attempt, give the correct version again, say "
+    "it's okay to continue, and move on.\n"
+    "5. Never continue to a new topic before a correct repetition or the 3-attempt limit.\n\n"
+    "When {name} speaks in {native_language}, reply in {native_language}, introduce "
+    "the natural {target_language} equivalent, and briefly explain why it fits.\n\n"
+    "There is NO time limit on this session and no concept of a 'session for today' "
+    "being over. Never tell {name} the lesson/session is complete, finished, or that "
+    "you'll continue later - that framing is never true here and must never be said, "
+    "even if a summary of earlier progress mentions something like that (treat any "
+    "such mention in past context as a misphrasing to ignore, not as something to "
+    "repeat or defend). If it feels like a natural pause, ask what {name} wants to "
+    "practice next instead.\n\n"
+    "Keep replies short, interactive, and conversational, but never skip required corrections."
+    "Always Keep the conversation going."
+)
+
+# Also shared across every scenario, appended right after CORE_TUTOR_RULES.
+# Same {name}/{native_language}/{target_language} placeholders.
+DIFFICULTY_INSTRUCTIONS = {
+    "beginner": (
+        "\n\nDifficulty: beginner. Use simple, short sentences and common "
+        "vocabulary. Be patient - if {name} is stuck, switch to {native_language} "
+        "briefly to help them, then bring them back to {target_language}."
+    ),
+    "intermediate": (
+        "\n\nDifficulty: intermediate. Use natural conversational pace and "
+        "everyday vocabulary. Still correct every mistake per the rules above, "
+        "but expect {name} to keep up without much hand-holding."
+    ),
+    "advanced": (
+        "\n\nDifficulty: advanced. Speak at a natural native pace, using "
+        "idiomatic phrasing and varied vocabulary. Minimal simplification - "
+        "treat {name} like a capable speaker who is refining fluency."
+    ),
+}
+DEFAULT_DIFFICULTY = "intermediate"
+
+
+# Appended to the system instruction only when a conversation is starting a
+# fresh Live session (no valid resumption handle) and has a stored rolling
+# summary - re-seeds context Google's own session state can no longer carry.
+MEMORY_CONTEXT_TEMPLATE = (
+    "\n\nContext remembered from earlier conversations with {name} (use this "
+    "naturally to stay consistent - don't recite it verbatim or announce that "
+    "you're reading notes):\n{summary}"
+)
+
+# Appended to every system instruction, unconditionally - drives the
+# set_mood tool call handled in live_session.py. The tool's own JSON
+# schema (MOOD_TOOL) stays mechanical (valid values only); all the
+# "why/when to pick each one" guidance lives here instead.
+#
+# 'sleep' is deliberately NOT in the enum - it's a separate, deterministic
+# client-side idle-timeout state (see armIdleSleepTimer in audio.js), not
+# something Gemini should ever be able to trigger mid-conversation.
+MOOD_INSTRUCTION = (
+    "\n\nYou have a mandatory set_mood tool. Call it silently on EVERY reply; "
+    "never mention or narrate it.\n\n"
+    "Use exactly these moods:\n"
+    "- happy: student gets it right on the first try.\n"
+    "- sad: correcting any mistake.\n"
+    "- fear: 2nd or 3rd incorrect repetition.\n"
+    "- love: corrected phrase finally repeated correctly.\n"
+    "- neutral: new topic or any other case.\n\n"
+    "Always call set_mood once per response; use neutral if no other mood applies."
+)
+
+MOOD_TOOL = types.Tool(
+    function_declarations=[
+        types.FunctionDeclaration(
+            name="set_mood",
+            description=(
+                "Silently express the tutor's emotional reaction to the "
+                "current moment in the conversation, so the avatar's face "
+                "reflects it."
+            ),
+            parameters=types.Schema(
+                type="OBJECT",
+                properties={
+                    "mood": types.Schema(
+                        type="STRING",
+                        enum=["neutral", "happy", "sad", "fear", "love"],
+                    )
+                },
+                required=["mood"],
+            ),
+        )
+    ]
+)
+
+DEFAULT_VOICE = "Kore"
+DEFAULT_NATIVE_LANGUAGE = "English"
+DEFAULT_TARGET_LANGUAGE = "Polish"
+
+# Non-realtime text model used only for periodic rolling-summary folding
+# (memory.py / summarize_conversation in summarization.py) - cheap
+# free-tier text calls, separate from the Live API models used for the
+# actual conversation. gemini-2.5-flash's free tier is capped at 20 RPD,
+# too low for a summarization call firing every ~15 turns across active
+# conversations; gemini-3.1-flash-lite gives 500 RPD instead and is plenty
+# for this task.
+SUMMARY_MODEL = "gemini-3.1-flash-lite"
+
+# Official voice names + descriptors are from Google's docs
+# (ai.google.dev/gemini-api/docs/speech-generation), which label voices by
+# tone/character. Gender is not an official Google label - this mapping is
+# a manual categorization for the UI's gender-first picker, not a claim
+# Google makes. pitch is a supplementary manual categorization (same
+# spirit as gender), shown alongside descriptor on the avatar-select page.
+VOICE_OPTIONS = [
+    {
+        "name": "Zephyr",
+        "descriptor": "Bright",
+        "gender": "Female",
+        "pitch": "High",
+        "alias": "Mila",
+    },
+    {
+        "name": "Puck",
+        "descriptor": "Upbeat",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Max",
+    },
+    {
+        "name": "Charon",
+        "descriptor": "Informative",
+        "gender": "Male",
+        "pitch": "Mid-to-low",
+        "alias": "Leo",
+    },
+    {
+        "name": "Kore",
+        "descriptor": "Firm",
+        "gender": "Female",
+        "pitch": "Mid-to-high",
+        "alias": "Chloe",
+    },
+    {
+        "name": "Fenrir",
+        "descriptor": "Excitable",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Felix",
+    },
+    {
+        "name": "Leda",
+        "descriptor": "Youthful",
+        "gender": "Female",
+        "pitch": "High",
+        "alias": "Ava",
+    },
+    {
+        "name": "Orus",
+        "descriptor": "Firm",
+        "gender": "Male",
+        "pitch": "Mid-to-low",
+        "alias": "Miles",
+    },
+    {
+        "name": "Aoede",
+        "descriptor": "Breezy",
+        "gender": "Female",
+        "pitch": "Mid-range",
+        "alias": "Zoe",
+    },
+    {
+        "name": "Callirrhoe",
+        "descriptor": "Easy-going",
+        "gender": "Female",
+        "pitch": "Mid-to-high",
+        "alias": "Elena",
+    },
+    {
+        "name": "Autonoe",
+        "descriptor": "Bright",
+        "gender": "Female",
+        "pitch": "High",
+        "alias": "Maya",
+    },
+    {
+        "name": "Enceladus",
+        "descriptor": "Breathy",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Hugo",
+    },
+    {
+        "name": "Iapetus",
+        "descriptor": "Clear",
+        "gender": "Male",
+        "pitch": "Mid-to-low",
+        "alias": "Jasper",
+    },
+    {
+        "name": "Umbriel",
+        "descriptor": "Easy-going",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Oscar",
+    },
+    {
+        "name": "Algieba",
+        "descriptor": "Smooth",
+        "gender": "Female",
+        "pitch": "Mid-to-low",
+        "alias": "Isla",
+    },
+    {
+        "name": "Despina",
+        "descriptor": "Smooth",
+        "gender": "Female",
+        "pitch": "Mid-range",
+        "alias": "Nina",
+    },
+    {
+        "name": "Erinome",
+        "descriptor": "Clear",
+        "gender": "Female",
+        "pitch": "Mid-to-high",
+        "alias": "Lana",
+    },
+    {
+        "name": "Algenib",
+        "descriptor": "Gravelly",
+        "gender": "Male",
+        "pitch": "Low",
+        "alias": "Theo",
+    },
+    {
+        "name": "Rasalgethi",
+        "descriptor": "Informative",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Milo",
+    },
+    {
+        "name": "Laomedeia",
+        "descriptor": "Upbeat",
+        "gender": "Female",
+        "pitch": "Mid-range",
+        "alias": "Jade",
+    },
+    {
+        "name": "Achernar",
+        "descriptor": "Soft",
+        "gender": "Female",
+        "pitch": "Mid-range",
+        "alias": "Ruby",
+    },
+    {
+        "name": "Alnilam",
+        "descriptor": "Firm",
+        "gender": "Male",
+        "pitch": "Mid-to-low",
+        "alias": "Ezra",
+    },
+    {
+        "name": "Schedar",
+        "descriptor": "Even",
+        "gender": "Male",
+        "pitch": "Mid-to-low",
+        "alias": "Kai",
+    },
+    {
+        "name": "Gacrux",
+        "descriptor": "Mature",
+        "gender": "Female",
+        "pitch": "Mid-to-low",
+        "alias": "Holly",
+    },
+    {
+        "name": "Pulcherrima",
+        "descriptor": "Forward",
+        "gender": "Female",
+        "pitch": "High",
+        "alias": "Stella",
+    },
+    {
+        "name": "Achird",
+        "descriptor": "Friendly",
+        "gender": "Male",
+        "pitch": "Mid-to-high",
+        "alias": "Finn",
+    },
+    {
+        "name": "Zubenelgenubi",
+        "descriptor": "Casual",
+        "gender": "Male",
+        "pitch": "Low",
+        "alias": "Nico",
+    },
+    {
+        "name": "Vindemiatrix",
+        "descriptor": "Gentle",
+        "gender": "Female",
+        "pitch": "Low",
+        "alias": "Wren",
+    },
+    {
+        "name": "Sadachbia",
+        "descriptor": "Lively",
+        "gender": "Male",
+        "pitch": "Low",
+        "alias": "Dean",
+    },
+    {
+        "name": "Sadaltager",
+        "descriptor": "Knowledgeable",
+        "gender": "Male",
+        "pitch": "Mid-range",
+        "alias": "Brett",
+    },
+    {
+        "name": "Sulafat",
+        "descriptor": "Warm",
+        "gender": "Female",
+        "pitch": "Mid-to-high",
+        "alias": "Piper",
+    },
+]
+
+# Live API model choices. Rate limits are what's visible on the free tier as
+# of mid-2026 and can change - shown in the UI so the choice is informed.
+# Only the 2.5 native-audio generation exposes "affective dialog" (emotional
+# tone sensitivity/expression); the 3.x line traded that for lower latency.
+MODEL_OPTIONS = [
+    {
+        "id": "gemini-2.5-flash-native-audio-latest",
+        "label": "Gemini 2.5 Flash Native Audio Dialog",
+        "rate_limit_note": "1M TPM",
+        "supports_affective_dialog": True,
+    },
+    {
+        "id": "gemini-3.1-flash-live-preview",
+        "label": "Gemini 3 Flash Live",
+        "rate_limit_note": "65K TPM",
+        "supports_affective_dialog": False,
+    },
+]
+DEFAULT_MODEL = MODEL_OPTIONS[0]["id"]
+
+# Single source of truth for the package's version - pyproject.toml reads
+# this dynamically at build time (see its own
+# [tool.setuptools.dynamic] section), so bumping this one line is the only
+# thing a release needs; nothing else has to be kept in sync by hand.
+# routes_api.get_app_info (the Settings modal's About tab) prefers reading
+# the INSTALLED package's own metadata via importlib.metadata instead of
+# importing this directly, falling back to this constant only if the
+# package isn't recognized as installed at all (e.g. running straight from
+# a source checkout without ever having been pip-installed).
+APP_VERSION = "0.1.0"
+
+# OS-appropriate per-user data directory (profiles.json, memory.db,
+# voice_enrollment/) instead of storing user data inside the package tree
+# itself - a `pip install --upgrade` reinstalls/overwrites the package's
+# own files, and site-packages isn't guaranteed writable anyway.
+# appauthor=False keeps this flat (%LOCALAPPDATA%\LanguLearn on Windows)
+# rather than platformdirs' default doubled-up
+# %LOCALAPPDATA%\LanguLearn\LanguLearn.
+_OLD_DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(user_data_dir("LanguLearn", appauthor=False))
+
+
+def _migrate_legacy_data_dir() -> None:
+    """One-time move of any data sitting next to this package (see
+    _OLD_DATA_DIR above) into the OS-managed DATA_DIR, for installs that
+    predate that location. Safe to call on every startup: a fresh install
+    has no _OLD_DATA_DIR at all, and a fully-migrated install has an
+    _OLD_DATA_DIR that's empty (or absent), so this is a no-op past the
+    first run either way. Per-item existence checks make it resumable if a
+    prior run was interrupted partway through.
+    """
+    if not _OLD_DATA_DIR.is_dir():
+        return
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for item in _OLD_DATA_DIR.iterdir():
+        target = DATA_DIR / item.name
+        if target.exists():
+            continue
+        try:
+            shutil.move(str(item), str(target))
+        except OSError:
+            pass  # leave it in the old location - next startup will retry
+
+
+_migrate_legacy_data_dir()
+
+PROFILES_FILE = DATA_DIR / "profiles.json"
+
+# Avatar .glb models, voice .wav samples, and tile .webp photos are NOT
+# bundled in the pip package (they're ~450MB - see README) - they're
+# downloaded once by `langulearn setup`/first run (see cli.py's bootstrap)
+# from a GitHub Release into this OS-managed location instead, alongside
+# the rest of DATA_DIR. main.py mounts /avatar, /voices, /photos from here.
+ASSETS_DIR = DATA_DIR / "assets"
+
+# Bumped independently of APP_VERSION (see cli.py) - these assets rarely
+# change, so a code-only release shouldn't force everyone to re-download
+# ~450MB for nothing. cli.py compares this against a marker file left in
+# ASSETS_DIR after a successful download, and only re-downloads on mismatch.
+ASSETS_VERSION = "1"
+
+# GitHub Release tag the three asset zips (avatars.zip/voices.zip/photos.zip)
+# are attached to - see cli.py's _ASSET_FILES for the exact download URLs
+# built from this.
+ASSETS_RELEASE_TAG = "assets-v1"
+
+# voice_name/native_language/target_language/model_name and
+# resumption_handle/resumption_config are unused by current code (every
+# conversation is created explicitly via /avatar-select instead). Kept on
+# new profiles only for schema consistency with older data.
+PROFILE_EDITABLE_FIELDS = (
+    "mic_device_id",
+    "mic_label",
+    "voice_name",
+    "voice_gender",
+    "name",
+    "native_language",
+    "target_language",
+    "model_name",
+    "active_conversation_id",
+    "api_key",
+    "mic_calibrations",
+    "default_difficulty",
+)
+
+# Live API connect retries. Classification (is_transient_error) and
+# retryDelay parsing live in retry.py, shared with summarize_conversation's
+# retry.call_with_retry in summarization.py - this loop stays separate only
+# because it manages an async context manager (see _connect_live_with_retries
+# in live_session.py).
+RETRY_ATTEMPTS = 4  # additional attempts after the first, so 5 tries total
+RETRY_BASE_DELAY = 1.5  # seconds, doubles each retry (or uses Google's suggested retryDelay if present)
+
+# Voice-based speaker verification (hands-free background-voice filtering).
+# Resemblyzer only (see requirements.txt for why ECAPA-TDNN/SpeechBrain
+# were evaluated and dropped).
+SPEAKER_VERIFICATION_BACKEND = "resemblyzer"
+
+# Cosine-similarity cutoff for "this is the enrolled speaker." This global
+# default is now mostly a fallback/baseline for the hands-free-setup page's
+# threshold-calibration test itself (see THRESHOLD_TEST_SENTENCES below) -
+# every profile that completes that test gets its OWN calibrated threshold
+# instead, stored as profile["mic_speaker_threshold"] and used at runtime
+# in preference to this constant. 0.8 deliberately sits above what real
+# speech scored in testing (genuine speech clustered 0.60-0.75 on one real
+# setup), so that during the test itself every predefined sentence reads as
+# "rejected" against it - the test isn't pass/fail, it's just collecting
+# real similarity scores, and the LOWEST of those becomes the profile's
+# actual threshold.
+SPEAKER_VERIFICATION_THRESHOLD = 0.8
+
+VOICE_ENROLLMENT_DIR = DATA_DIR / "voice_enrollment"
+SPEECH_DETECTION_DIR = DATA_DIR / "speech_detection"
+
+# Read aloud once per profile during voice enrollment. Kept short (~5s
+# each) and phonetically varied enough across the 3 samples for a stable
+# averaged reference embedding.
+ENROLLMENT_SENTENCES = [
+    "The quick brown fox jumps over the lazy dog near the river.",
+    "I would like to practice speaking a little more clearly today.",
+    "Yesterday we walked to the market and bought some fresh bread.",
+]
+
+# Read aloud during the hands-free-setup page's threshold-calibration test,
+# one at a time with a pause between each - each reading gets scored
+# against the profile's enrolled reference for that mic (speech_detection.score).
+# Deliberately short, natural phrases (closer to how someone actually talks
+# to the tutor than the longer ENROLLMENT_SENTENCES above), so the
+# calibrated threshold reflects realistic in-session speech rather than
+# careful enrollment-style reading.
+THRESHOLD_TEST_SENTENCES = [
+    "Hello.",
+    "How are you doing today?",
+    "I'm here to learn and practice languages.",
+    "I would love to keep learning.",
+    "Thank you, have a great day.",
+]
+
+# The threshold test also records ONE clip of this - deliberately not
+# speech - right after the 5 sentences above, and scores it the same way,
+# so the setup page can place the calibrated threshold at the midpoint
+# between the weakest genuine-speech reading and actual measured noise on
+# this specific mic, rather than guessing from speech samples alone.
+THRESHOLD_TEST_NOISE_PROMPT = "Stay quiet, or make some noise without speaking (tap the desk, cough, rustle papers)..."
+
+# Hands-free mode: the mic stays open continuously (no push-to-talk), so
+# incoming audio is chopped into rolling windows and each window is
+# speaker-verified before being forwarded to Gemini. 1.6s matches
+# Resemblyzer's own internal partial-utterance window (VoiceEncoder slices
+# audio into 1.6s partials internally), so this is close to the minimum
+# that's still a good fit for the active backend - shrinking further would
+# reduce speak-to-response delay but hurt embedding quality.
+HANDSFREE_WINDOW_SECONDS = 1.6
+HANDSFREE_WINDOW_BYTES = int(16000 * HANDSFREE_WINDOW_SECONDS) * 2  # 16kHz, int16 = 2 bytes/sample
+
+# RMS (on float32 [-1,1] samples) below this is treated as silence rather
+# than "someone else is talking" - used to decide when to close out a turn
+# (send activity_end) versus just dropping a window without ending the
+# turn, and also to trim silence padding before speaker-embedding (see
+# speech_detection/audio_utils.py). This is only the fallback default -
+# each profile calibrates its own value per-mic via the hands-free-setup
+# page's "Calibrate mic" step, stored in profile["mic_calibrations"][mic_key]
+# (see live_session.py's hf_silence_threshold / hf_similarity_threshold for
+# how a specific mic's entry is looked up at runtime).
+HANDSFREE_SILENCE_RMS_THRESHOLD = 0.01
+
+# Key used for a profile's built-in/OS-default microphone in
+# profile["mic_calibrations"] (a dict keyed by mic label, since device IDs
+# aren't guaranteed stable across browser sessions/reboots but labels are
+# what's already used for mic matching elsewhere - see loadMicsForProfile).
+# "Default microphone" is never a real device label, so it can't collide.
+DEFAULT_MIC_CALIBRATION_KEY = "__default__"

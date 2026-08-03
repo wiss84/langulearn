@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>
+// No-FOUC theme detection: must run before base.css paints anything, so
+// this is an inline blocking script in <head>, ahead of the stylesheet
+// link - not deferred into a scripts/ file like everything else. The
+// click-to-toggle behavior (which needs #themeToggleBtn to exist first)
+// lives in scripts/theme.js instead, included right after the topbar.
+(function () {
+  var saved = localStorage.getItem('theme');
+  var theme = (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% block title %}LanguLearn{% endblock %}</title>
+<link rel="icon" type="image/x-icon" href="/LanguLearn.ico" />
+<link rel="stylesheet" href="/UI/styles/base.css?v=1" />
+  <link rel="stylesheet" href="/UI/styles/topbar.css?v=2" />
+{% block styles %}{% endblock %}
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="topbarLeft">
+      {% block topbar_home %}{% endblock %}
+      <h1 id="appTitle">{% block topbar_left_extra %}<span class="app-name-text">LanguLearn</span>{% endblock %}</h1>
+    </div>
+    <div id="topbarRight">
+      {% block topbar_right %}{% endblock %}
+      {% block theme_toggle %}<button id="themeToggleBtn" class="icon-btn" type="button" title="Switch theme">🌙</button>{% endblock %}
+    </div>
+  </div>
+  <div id="pageBody">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+{% block modals %}{% endblock %}
+<script src="/UI/scripts/theme.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

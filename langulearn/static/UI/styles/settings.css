@@ -1,0 +1,287 @@
+/* --- Learning page top bar: settings avatar button + dropdown ---
+   Circular avatar icon (first letter of the profile's name), matching
+   .profile-tile-avatar's visual language on /profiles - a scaled-down
+   copy rather than a shared class, since profiles_page.css isn't loaded
+   on the learning page. */
+
+#settingsMenuWrap {
+  position: relative;
+}
+
+.settings-avatar-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.settings-avatar-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.settings-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  z-index: 40;
+}
+.settings-dropdown.visible { display: block; }
+
+.settings-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.settings-dropdown-item:hover { background: var(--panel-raised); }
+
+/* --- Settings modal shell: left category list + right content pane
+   (not one long scrolling form - there's enough distinct grouping here
+   to earn the split, unlike the notes/profile-detail modals). --- */
+
+#settingsOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.6);
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#settingsOverlay.visible { display: flex; }
+
+#settingsModal {
+  position: relative;
+  display: flex;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 640px;
+  max-width: 94vw;
+  height: 480px;
+  max-height: 86vh;
+  overflow: hidden;
+}
+
+#closeSettingsBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+}
+
+#settingsSidebar {
+  flex: 0 0 170px;
+  background: var(--panel-raised);
+  border-right: 1px solid var(--border);
+  padding: 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.settings-cat-btn {
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 9px 10px;
+  cursor: pointer;
+}
+.settings-cat-btn:hover { color: var(--text); }
+.settings-cat-btn.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+#settingsContent {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.settings-pane h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 16px;
+}
+
+/* --- General tab: save row --- */
+
+.settings-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.settings-save-row .field-hint { margin: 0; }
+
+/* --- Voice & hands-free: per-mic status list --- */
+
+.mic-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mic-status-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.mic-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.mic-status-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mic-status-badges {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.mic-status-badge {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.mic-status-badge.done { color: var(--ok); }
+
+/* --- Learning pane: difficulty toggle - same look as avatar-select's own
+   (avatar_select.css), duplicated here rather than linking that whole
+   page-specific stylesheet just for this one shared shape. --- */
+
+.difficulty-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.difficulty-option {
+  flex: 1;
+  padding: 9px 0;
+  background: var(--panel-raised);
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.difficulty-option:last-child { border-right: none; }
+.difficulty-option:hover { color: var(--text); }
+.difficulty-option.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* --- Data controls: export learnt notes (one row per conversation - up
+   to 5 visible, then this scrolls; doesn't affect the rest of the tab). --- */
+
+.export-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.export-row-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.export-row-actions .pill-btn {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+}
+.export-list-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* --- Data controls: danger zone --- */
+
+.danger-zone {
+  margin-top: 4px;
+}
+.danger-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.danger-btn:hover { background: var(--accent); color: #fff; }
+
+@media (max-width: 560px) {
+  #settingsModal { flex-direction: column; height: 86vh; }
+  #settingsSidebar {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}

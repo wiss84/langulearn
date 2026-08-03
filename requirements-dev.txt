@@ -1,0 +1,11 @@
+# Dev-only dependencies for running the test suite - not needed to run the
+# app itself (see requirements.txt for that). Install with:
+#   pip install -r requirements-dev.txt
+
+pytest
+pytest-asyncio
+pytest-cov
+httpx
+httpx2
+ruff
+numpy

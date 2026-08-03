@@ -1,0 +1,67 @@
+{% extends "index.html" %}
+
+{% block title %}LanguLearn{% endblock %}
+
+{% block topbar_home %}
+<a id="homeLink" href="/profiles" class="icon-btn" title="Switch profile">🏠</a>
+{% endblock %}
+
+{% block topbar_left_extra %}
+<span id="connectionDot"></span> <span class="app-name-text">LanguLearn</span> <span id="sessionStatusText" class="session-status"></span>
+<span id="modelDot"></span><span id="modelNameText"></span>
+{% endblock %}
+
+{% block topbar_right %}
+<button id="handsFreeBtn" class="icon-btn" type="button" title="Hands-free listening (muted - click to unmute)">🎙️</button>
+<button id="cameraToggleBtn" class="icon-btn" type="button" title="Show/hide avatar">🎥</button>
+<div id="settingsMenuWrap">
+  <button id="settingsAvatarBtn" class="icon-btn settings-avatar-btn" type="button" title="Account menu">?</button>
+  <div id="settingsDropdown" class="settings-dropdown">
+    <button id="settingsDropdownOpenBtn" class="settings-dropdown-item" type="button">⚙️ Settings</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block theme_toggle %}{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/main.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/avatar_drawer.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/settings.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="body">
+  {% include "pages/_main.html" %}
+  {% include "pages/_avatar_drawer.html" %}
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "pages/_settings_modal.html" %}
+{% include "pages/_notes_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/state.js"></script>
+<script src="/UI/scripts/transcript.js"></script>
+<script src="/UI/scripts/notes.js"></script>
+<script src="/UI/scripts/settings.js"></script>
+<script src="/UI/scripts/profiles.js"></script>
+<script src="/UI/scripts/conversations.js"></script>
+<script src="/UI/scripts/audio.js"></script>
+<script src="/UI/scripts/websocket.js"></script>
+<script src="/UI/scripts/init.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/build/three.module.js",
+    "three/addons/": "/vendor/three/jsm/",
+    "talkinghead": "/vendor/talkinghead/modules/talkinghead.mjs"
+  }
+}
+</script>
+<script type="module" src="/UI/scripts/avatarDrawer.js"></script>
+{% endblock %}

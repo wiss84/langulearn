@@ -1,0 +1,88 @@
+/* --- Hands-free setup page: centered, wider card than /landing since it
+   walks through 3 sequential sections rather than a short form. */
+
+#hfSetupWrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+#hfSetupCard {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  width: 520px;
+  max-width: 92vw;
+  margin: 24px 0;
+}
+
+#hfSetupTitle {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 10px;
+}
+
+#hfSetupIntro {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.hf-setup-section h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.hf-setup-center-header {
+  text-align: center;
+}
+
+#thresholdTestLog {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hf-test-line {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+}
+
+.hf-test-line.hf-test-active {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+#hfSetupDoneMessage {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text);
+  text-align: center;
+  margin: 0;
+}
+
+#hfSetupNav {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+#hfContinueBtn:disabled {
+  background: var(--panel-raised);
+  color: var(--text-muted);
+  cursor: default;
+}

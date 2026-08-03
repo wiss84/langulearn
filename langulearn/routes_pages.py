@@ -1,0 +1,50 @@
+"""Server-rendered page shells (static/UI, composed via Jinja2). Split out
+of main.py - each route just renders one page/*.html.
+"""
+
+from pathlib import Path
+
+from fastapi import APIRouter, Request
+from fastapi.templating import Jinja2Templates
+
+# Frontend is composed via Jinja2 from static/UI (index.html layout +
+# pages/ + styles/ + scripts/) instead of one flat index.html/app.js/
+# style.css, so pages/styles/scripts stay short and descriptively named
+# rather than growing into large monolithic files. Static assets under
+# static/UI/styles and static/UI/scripts, plus vendor/, are bundled with
+# the package and served as plain files by the StaticFiles mount in
+# main.py; avatar/voices/photos come from the separately-downloaded
+# ASSETS_DIR instead (see main.py and constants.py) - only the page shell
+# itself is server-rendered. Resolved relative to this file rather than
+# the process's current working directory, same reasoning as main.py's
+# STATIC_DIR - a pip-installed app can't assume it's run from a repo root.
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "static" / "UI"))
+
+router = APIRouter()
+
+
+@router.get("/")
+async def serve_learning_page(request: Request):
+    # `request` is passed as TemplateResponse's first positional argument,
+    # not inside a context dict - Starlette's current calling convention.
+    return templates.TemplateResponse(request, "pages/learning.html")
+
+
+@router.get("/landing")
+async def serve_landing_page(request: Request):
+    return templates.TemplateResponse(request, "pages/landing.html")
+
+
+@router.get("/avatar-select")
+async def serve_avatar_select_page(request: Request):
+    return templates.TemplateResponse(request, "pages/avatar_select.html")
+
+
+@router.get("/profiles")
+async def serve_profiles_page(request: Request):
+    return templates.TemplateResponse(request, "pages/profiles.html")
+
+
+@router.get("/handsfree-setup")
+async def serve_handsfree_setup_page(request: Request):
+    return templates.TemplateResponse(request, "pages/handsfree_setup.html")
