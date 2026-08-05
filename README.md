@@ -1,6 +1,10 @@
 # LanguLearn
 
-**A self-hosted Speech 2 Speech AI language tutor — with 3D interactive avatars.**
+**An AI language tutor that talks with you, remembers you, and has a face.**
+
+![LanguLearn AI tutor conversation demo](https://raw.githubusercontent.com/wiss84/langulearn/main/langulearn/static/images/demo.gif)
+
+Self-hosted. Open-source. Powered by Gemini Live API.
 
 ---
 
@@ -19,6 +23,12 @@ You hold to talk → speak → Gemini Live API (audio in, audio out) → avatar 
 
 ---
 
+## Demo Video
+
+- **0.1.0  Initial Release** — Watch the full [LanguLearn Tutorial](https://youtu.be/0YEskMeH4Gk)
+
+---
+
 ## Why this instead of a text chatbot?
 
 Most "AI language tutor" tools are really just a chat window with a system prompt. That's fine for grammar explanations, but it doesn't train the thing that actually makes a language hard to speak: real-time listening and speaking under mild pressure, and actually correcting you as you go.
@@ -31,10 +41,6 @@ LanguLearn is built around the Gemini **Live API** specifically because it's ful
 - **It doesn't forget you.** Conversations persist across sessions with a rolling memory summary, so reconnecting doesn't mean starting over.
 
 ---
-
-## Demo Video
-
-- **0.1.0  Initial Release** — Watch the [LanguLearn Tutorial](https://youtu.be/0YEskMeH4Gk)
 
 ## Screenshots
 
@@ -82,23 +88,17 @@ LanguLearn is built around the Gemini **Live API** specifically because it's ful
 
 ## Setup
 
-```bash
-pip install langulearn
-langulearn
-```
-
-That's it. The first run does a one-time setup automatically: installs the two extra packages hands-free mode needs, downloads the avatar/voice/photo assets (~450MB, so this part takes a minute), and creates a desktop shortcut for you — then opens the app. Every run after that just opens the app straight away, no repeated setup, whether you launch it via `langulearn` again or the new desktop shortcut.
-
-No `.env` file or API key setup needed - you'll paste your own free Gemini API key directly into the app the first time you create a profile.
-
 A virtual environment is recommended, same as any Python package:
-
 ```bash
 conda create -n langulearn python=3.11 -y
 conda activate langulearn
 pip install langulearn
 langulearn setup          # install extras + download assets + create shortcut, without launching
 ```
+
+That's it. The first run does a one-time setup automatically: installs the two extra packages hands-free mode needs, downloads the avatar/voice/photo assets (~450MB, so this part takes a minute), and creates a desktop shortcut for you — then opens the app. Every run after that just opens the app straight away, no repeated setup, whether you launch it via `langulearn` again or the new desktop shortcut.
+
+No `.env` file or API key setup needed - you'll paste your own free Gemini API key directly into the app the first time you create a profile.
 
 Want more control over the one-time setup, or need to re-run it (e.g. after a broken install)?
 
