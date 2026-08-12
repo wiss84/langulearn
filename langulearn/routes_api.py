@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import uuid
 from importlib import metadata as importlib_metadata
 from urllib.parse import quote
@@ -16,7 +17,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
-from . import memory, scenarios, speech_detection
+from . import memory, scenarios, speech_detection, updater
 from .constants import (
     APP_VERSION,
     ASSETS_DIR,
@@ -121,6 +122,99 @@ def open_data_folder():
     return {"opened": True, "path": path}
 
 
+# --- Update check / apply (top-bar notification, profile dropdown,
+# Settings > Updates tab - see update.js and settings.js) ---
+
+_update_status_cache = {"ts": 0.0, "data": None}
+_UPDATE_STATUS_CACHE_SECONDS = (
+    300  # PyPI is a network round trip; every page load re-checking would be needlessly chatty for a local desktop app
+)
+
+
+@router.get("/api/update-status")
+async def get_update_status(force: bool = False):
+    """Backs the top-bar bell, the profile dropdown's persistent update
+    button, and the Settings > Updates tab - all three read this same
+    endpoint rather than each doing their own check. Cached for a few
+    minutes; pass ?force=true to bypass (used by the Settings tab's own
+    "Check for Updates" button, not the silent on-load check every page
+    does).
+    """
+    now = time.time()
+    cached = _update_status_cache["data"]
+    if not force and cached is not None and (now - _update_status_cache["ts"]) < _UPDATE_STATUS_CACHE_SECONDS:
+        return cached
+
+    app_info = await asyncio.to_thread(updater.check_app_update)
+    assets_info = updater.check_assets_update()  # local file comparison only, no network - fine directly on the event loop
+    data = {"app": app_info, "assets": assets_info}
+    _update_status_cache["ts"] = now
+    _update_status_cache["data"] = data
+    return data
+
+
+@router.post("/api/update-app")
+async def update_app_endpoint():
+    """Runs `pip install --upgrade langulearn`, off the event loop -
+    reports success/failure but does NOT restart the app itself; the
+    frontend calls /api/restart-app separately once this succeeds, so a
+    failed upgrade never leaves the app mid-restart.
+    """
+    success, output = await asyncio.to_thread(updater.run_pip_upgrade)
+    if not success:
+        raise HTTPException(500, f"Update failed: {output[-2000:]}")
+    _update_status_cache["data"] = None  # force a fresh check next time - the installed version just changed
+    return {"success": True}
+
+
+@router.post("/api/update-assets")
+async def update_assets_endpoint():
+    """Re-downloads the avatar/voice/photo bundle. Unlike an app-code
+    update, this needs no relaunch - StaticFiles (see main.py) serves
+    these straight off disk, so a fresh page load already picks up the
+    new files.
+    """
+    try:
+        await asyncio.to_thread(updater.download_and_extract_assets, True, None)
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+    _update_status_cache["data"] = None
+    return {"success": True}
+
+
+@router.post("/api/restart-app")
+async def restart_app_endpoint():
+    """Spawns a fresh, fully detached `langulearn` process, then closes
+    THIS process's own pywebview window - which is what actually lets
+    this process exit (desktop.py's run() blocks on webview.start() until
+    the window closes, then returns; nothing else keeps the process alive
+    after that - see updater.close_this_window's own docstring). The new
+    window opens on its own; there's no dead leftover window to close by
+    hand.
+    """
+    updater.relaunch_app()
+    closed = updater.close_this_window()
+    return {"restarting": True, "window_closed": closed}
+
+
+@router.get("/api/whats-new-status")
+async def get_whats_new_status():
+    """Backs the top-bar bell's "what's new" row - whether the currently
+    installed version differs from the last one the app recorded as seen.
+    Local file comparison only, no network - safe directly on the event
+    loop.
+    """
+    return updater.check_whats_new()
+
+
+@router.get("/api/release-notes/{version}")
+async def get_release_notes(version: str):
+    html = updater.render_release_notes_html(version)
+    if html is None:
+        raise HTTPException(404, f"No release notes found for version {version}")
+    return {"version": version, "html": html}
+
+
 # --- Profiles REST API ---
 
 
@@ -141,20 +235,25 @@ async def create_profile(request: Request):
         "id": str(uuid.uuid4()),
         "name": name,
         "api_key": api_key,
+        "langfuse_public_key": None,
+        "langfuse_secret_key": None,
+        "langfuse_base_url": None,
         "mic_device_id": None,
         "mic_label": None,
-        "voice_name": DEFAULT_VOICE,
         "voice_gender": next((v["gender"] for v in VOICE_OPTIONS if v["name"] == DEFAULT_VOICE), "Female"),
+        # Starting point only - avatarSelect.js reads this back as the
+        # default native_language/model_name when adding a new language to
+        # this profile later, and native_language is also directly editable
+        # from the Settings modal's General tab (settings.js). Every
+        # conversation still stores its own independent copy once created
+        # (see memory.py) - these two are never read again after that.
         "native_language": DEFAULT_NATIVE_LANGUAGE,
-        "target_language": DEFAULT_TARGET_LANGUAGE,
         "model_name": DEFAULT_MODEL,
         # Starting point for the difficulty toggle next time this profile
         # adds a new language (see avatarSelect.js) - editable from the
         # Settings modal's Learning tab (settings.js).
         "default_difficulty": DEFAULT_DIFFICULTY,
         "active_conversation_id": None,
-        "resumption_handle": None,
-        "resumption_config": None,
         # Keyed by mic label (see constants.DEFAULT_MIC_CALIBRATION_KEY for
         # the default-mic sentinel) - each entry:
         # {"silence_rms_threshold": float, "speaker_threshold": float,

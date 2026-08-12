@@ -44,6 +44,15 @@ def _profile_root(profile_id: str):
     return VOICE_ENROLLMENT_DIR / profile_id
 
 
+def profile_enrollment_dir(profile_id: str):
+    """Public accessor for backup/export code - the on-disk location of a
+    profile's entire voice enrollment (every mic it has a reference for),
+    for copying wholesale rather than reasoning about individual mics.
+    Doesn't imply the directory exists - callers should check.
+    """
+    return _profile_root(profile_id)
+
+
 def _mic_dir(profile_id: str, mic_key: str):
     return _profile_root(profile_id) / _mic_dir_name(mic_key)
 

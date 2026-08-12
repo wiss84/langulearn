@@ -35,6 +35,14 @@ const settingsToggleApiKeyBtn = document.getElementById('settingsToggleApiKeyBtn
 const settingsSaveApiKeyBtn = document.getElementById('settingsSaveApiKeyBtn');
 const settingsApiKeyStatus = document.getElementById('settingsApiKeyStatus');
 
+const settingsLangfusePublicKeyInput = document.getElementById('settingsLangfusePublicKeyInput');
+const settingsToggleLangfusePublicKeyBtn = document.getElementById('settingsToggleLangfusePublicKeyBtn');
+const settingsLangfuseSecretKeyInput = document.getElementById('settingsLangfuseSecretKeyInput');
+const settingsToggleLangfuseSecretKeyBtn = document.getElementById('settingsToggleLangfuseSecretKeyBtn');
+const settingsLangfuseBaseUrlInput = document.getElementById('settingsLangfuseBaseUrlInput');
+const settingsSaveLangfuseBtn = document.getElementById('settingsSaveLangfuseBtn');
+const settingsLangfuseStatus = document.getElementById('settingsLangfuseStatus');
+
 // Voice & hands-free
 const settingsMicSelect = document.getElementById('settingsMicSelect');
 const settingsRefreshMicsBtn = document.getElementById('settingsRefreshMicsBtn');
@@ -53,6 +61,13 @@ const settingsDeleteProfileBtn = document.getElementById('settingsDeleteProfileB
 // About
 const settingsVersionText = document.getElementById('settingsVersionText');
 const settingsCreditsText = document.getElementById('settingsCreditsText');
+
+// Updates
+const settingsAppVersionText = document.getElementById('settingsAppVersionText');
+const settingsAssetsVersionText = document.getElementById('settingsAssetsVersionText');
+const settingsCheckUpdatesBtn = document.getElementById('settingsCheckUpdatesBtn');
+const settingsUpdateActionBtn = document.getElementById('settingsUpdateActionBtn');
+const settingsUpdateStatus = document.getElementById('settingsUpdateStatus');
 
 // --- Topbar avatar button + dropdown ---
 
@@ -111,6 +126,7 @@ async function openSettingsModal() {
   loadMicsForSettings();
   loadMicStatusList();
   loadAboutPane();
+  populateUpdatesPane();
 }
 
 // --- General ---
@@ -167,6 +183,15 @@ function populateAccountPane() {
   settingsApiKeyInput.type = 'password';
   settingsToggleApiKeyBtn.textContent = '\ud83d\udc41\ufe0f';
   settingsApiKeyStatus.textContent = '';
+
+  settingsLangfusePublicKeyInput.value = currentProfile.langfuse_public_key || '';
+  settingsLangfusePublicKeyInput.type = 'password';
+  settingsToggleLangfusePublicKeyBtn.textContent = '\ud83d\udc41\ufe0f';
+  settingsLangfuseSecretKeyInput.value = currentProfile.langfuse_secret_key || '';
+  settingsLangfuseSecretKeyInput.type = 'password';
+  settingsToggleLangfuseSecretKeyBtn.textContent = '\ud83d\udc41\ufe0f';
+  settingsLangfuseBaseUrlInput.value = currentProfile.langfuse_base_url || '';
+  settingsLangfuseStatus.textContent = '';
 }
 
 settingsToggleApiKeyBtn.addEventListener('click', () => {
@@ -192,6 +217,49 @@ settingsSaveApiKeyBtn.addEventListener('click', async () => {
     settingsApiKeyStatus.textContent = 'Could not save - check your connection.';
   } finally {
     settingsSaveApiKeyBtn.disabled = false;
+  }
+});
+
+settingsToggleLangfusePublicKeyBtn.addEventListener('click', () => {
+  const showing = settingsLangfusePublicKeyInput.type === 'text';
+  settingsLangfusePublicKeyInput.type = showing ? 'password' : 'text';
+  settingsToggleLangfusePublicKeyBtn.textContent = showing ? '\ud83d\udc41\ufe0f' : '\ud83d\ude48';
+});
+
+settingsToggleLangfuseSecretKeyBtn.addEventListener('click', () => {
+  const showing = settingsLangfuseSecretKeyInput.type === 'text';
+  settingsLangfuseSecretKeyInput.type = showing ? 'password' : 'text';
+  settingsToggleLangfuseSecretKeyBtn.textContent = showing ? '\ud83d\udc41\ufe0f' : '\ud83d\ude48';
+});
+
+settingsSaveLangfuseBtn.addEventListener('click', async () => {
+  const publicKey = settingsLangfusePublicKeyInput.value.trim();
+  const secretKey = settingsLangfuseSecretKeyInput.value.trim();
+  if (!publicKey || !secretKey) {
+    settingsLangfuseStatus.textContent = 'Both keys are required to enable Langfuse.';
+    return;
+  }
+  settingsSaveLangfuseBtn.disabled = true;
+  settingsLangfuseStatus.textContent = 'Saving...';
+  try {
+    const payload = {
+      langfuse_public_key: publicKey,
+      langfuse_secret_key: secretKey,
+      langfuse_base_url: settingsLangfuseBaseUrlInput.value.trim() || null,
+    };
+    await fetch(`/api/profiles/${currentProfile.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    currentProfile.langfuse_public_key = publicKey;
+    currentProfile.langfuse_secret_key = secretKey;
+    currentProfile.langfuse_base_url = settingsLangfuseBaseUrlInput.value.trim() || null;
+    settingsLangfuseStatus.textContent = 'Saved - takes effect on your next connect.';
+  } catch (e) {
+    settingsLangfuseStatus.textContent = 'Could not save - check your connection.';
+  } finally {
+    settingsSaveLangfuseBtn.disabled = false;
   }
 });
 
@@ -558,6 +626,57 @@ function renderAboutPane(info) {
     ? `Built with ${info.credits.join(', ')}.`
     : '';
 }
+
+// --- Updates ---
+// Reads the same latestUpdateStatus/describeUpdate/runUpdateAction the
+// top-bar bell and profile-dropdown item use (update.js, loaded globally
+// in index.html before this file) - this tab is just another view onto
+// the same state, not a separate check.
+
+function renderUpdatesPane() {
+  const app = latestUpdateStatus && latestUpdateStatus.app;
+  const assets = latestUpdateStatus && latestUpdateStatus.assets;
+
+  settingsAppVersionText.textContent = app
+    ? (app.update_available
+        ? `v${app.current} \u2192 v${app.latest} available`
+        : `v${app.current} (up to date)`)
+    : 'Could not check.';
+
+  settingsAssetsVersionText.textContent = assets
+    ? (assets.update_available ? 'Update available' : 'Up to date')
+    : 'Could not check.';
+
+  const info = describeUpdate(latestUpdateStatus);
+  settingsUpdateActionBtn.hidden = !info;
+  if (info) {
+    settingsUpdateActionBtn.textContent = info.actionLabel;
+    settingsUpdateActionBtn.disabled = false;
+  }
+  settingsUpdateStatus.textContent = '';
+}
+
+async function populateUpdatesPane() {
+  settingsAppVersionText.textContent = 'Checking...';
+  settingsAssetsVersionText.textContent = 'Checking...';
+  settingsUpdateActionBtn.hidden = true;
+  settingsUpdateStatus.textContent = '';
+  await loadUpdateStatus(false); // shares the cache - opening this tab right after the silent on-load check won't re-hit PyPI
+  renderUpdatesPane();
+}
+
+settingsCheckUpdatesBtn.addEventListener('click', async () => {
+  settingsCheckUpdatesBtn.disabled = true;
+  settingsAppVersionText.textContent = 'Checking...';
+  settingsAssetsVersionText.textContent = 'Checking...';
+  await loadUpdateStatus(true); // force - bypasses the cache, this is the explicit manual check
+  renderUpdatesPane();
+  settingsCheckUpdatesBtn.disabled = false;
+});
+
+settingsUpdateActionBtn.addEventListener('click', () => {
+  runUpdateAction((text) => { settingsUpdateStatus.textContent = text; }, settingsUpdateActionBtn);
+});
 
 // If a profile is already loaded by the time this script runs (unlikely,
 // since init.js's fetch is async, but harmless either way), reflect it

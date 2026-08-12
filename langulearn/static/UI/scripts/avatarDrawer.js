@@ -68,8 +68,39 @@ function setAvatarMood(mood) {
   if (typeof head.setMood === 'function') head.setMood(mood);
   const gesture = MOOD_GESTURES[mood];
   if (gesture && typeof head.playGesture === 'function') head.playGesture(gesture, MOOD_GESTURE_DURATION_S);
+  installSafePoseLoop();
 }
 window.setAvatarMood = setAvatarMood;
+
+// TalkingHead's vendored source (vendor/talkinghead/modules/talkinghead.mjs)
+// gives each mood its own infinite idle pose-cycling animation as part of
+// animMoods[mood].anims (a 'pose'-named entry with alt/probability weights
+// picking from poseTemplates every 5-30s) - head.setMood() reinstalls that
+// mood's own version of this animation into head.animQueue every single
+// time it's called, which is why this has to run after every setMood call
+// too, not just once after the avatar loads. Several moods ('sad', 'fear',
+// 'love') specifically include 'oneknee'/'kneel'/'sitting' as options, but
+// ONLY in the branch that fires when the camera view is 'full' (fullscreen
+// - see enterMaximize() below) - which is why kneeling/sitting only ever
+// showed up in fullscreen, and only for certain moods.
+//
+// This removes whatever 'pose' animation is currently queued and replaces
+// it with an equivalent infinite loop built the same way (head.animFactory
+// with loop=-1, same as setMood's own internal usage), just restricted to
+// standing poses only - same mechanism the library already uses, just with
+// kneeling/sitting/lying excluded regardless of mood or view.
+const SAFE_POSE_NAMES = ['side', 'hip', 'straight', 'wide'];
+function installSafePoseLoop() {
+  if (!head) return;
+  const i = head.animQueue.findIndex((x) => x.template.name === 'pose');
+  if (i !== -1) head.animQueue.splice(i, 1);
+  head.animQueue.push(
+    head.animFactory(
+      { name: 'pose', alt: SAFE_POSE_NAMES.map((name) => ({ delay: [5000, 30000], vs: { pose: [name] } })) },
+      -1
+    )
+  );
+}
 
 // Same VRoid/ARKit blend-shape gap workaround as avatarPreview.js - see
 // that file for the full explanation. Duplicated rather than shared since
@@ -155,6 +186,7 @@ async function ensureAvatarReady() {
   try {
     await head.showAvatar({ url: `/avatar/${voiceName}_th.glb` });
     stubMissingBlendShapes();
+    installSafePoseLoop(); // showAvatar() ends by calling setMood() itself, which installs the mood's own (unsafe) pose loop - strip it immediately
     avatarDrawerHint.textContent = '';
   } catch (e) {
     avatarDrawerHint.textContent = 'Avatar could not load.';

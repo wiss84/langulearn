@@ -54,6 +54,15 @@ def run(host: str = "127.0.0.1", port: int = 8000) -> None:
     # Give uvicorn a moment to bind before pointing the window at it.
     time.sleep(1.5)
 
+    # Window size is set generously wide, since the sidebar + main layout
+    # needs real horizontal room - it's resizable, so this is just a sane
+    # default. Bumped from an earlier 1200/900 baseline: with the quiz
+    # drawer (420-480px) added alongside the sidebar, that width left the
+    # chat area cramped enough to feel like the drawer was overlapping it
+    # rather than sharing the window (see design_plans/issues_fix.md #3) -
+    # this isn't a confirmed complete fix, since the exact conditions
+    # under which the overlap was seen weren't fully reproduced, but it's
+    # a real, verified contributing factor worth having regardless.
     webview.create_window(
         "LanguLearn",
         # A cache-busting query string forces a fresh fetch on every launch,
@@ -65,9 +74,9 @@ def run(host: str = "127.0.0.1", port: int = 8000) -> None:
         # "who's watching" screen, rather than silently resuming whatever
         # profile happened to be active last time.
         f"http://{host}:{port}/profiles?v={int(time.time())}",
-        width=1200,
-        height=820,
-        min_size=(900, 650),
+        width=1360,
+        height=860,
+        min_size=(1100, 700),
         resizable=True,
     )
     webview.start(private_mode=False, icon=str(ICON_PATH) if ICON_PATH.exists() else None)

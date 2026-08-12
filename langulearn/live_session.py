@@ -51,10 +51,10 @@ Session memory has two layers now:
 
 Mood: the tutor's avatar expression is driven two ways - a mood_change
 message forwarded here whenever Gemini calls the set_mood tool (silent,
-model's discretion, driven by constants.MOOD_INSTRUCTION), and a
-client-side-only idle-timeout 'sleep' state the frontend manages entirely
-on its own (armIdleSleepTimer in audio.js) - this server never sends or
-knows about 'sleep'.
+model's discretion, driven by tutor_instructions.CONVERSATIONAL_RULES rule
+5), and a client-side-only idle-timeout 'sleep' state the frontend manages
+entirely on its own (armIdleSleepTimer in audio.js) - this server never
+sends or knows about 'sleep'.
 
 Retry behavior: Gemini's preview models occasionally return a transient
 "500 INTERNAL", "503 UNAVAILABLE", or (less often) a 429 rate-limit error
@@ -64,41 +64,122 @@ up to RETRY_ATTEMPTS additional times with exponential backoff (or Google's
 own suggested retryDelay when present) before giving up. Errors that aren't
 recognizably transient (bad request, auth, unknown model, etc.) fail
 immediately instead of being retried pointlessly.
+
+go_away/1011 reconnects: two different signals both mean "this Gemini
+session is ending, open a new one" - go_away is Google's own advance
+notice (session nearing its time/context limit), 1011 is an abrupt close.
+Both are handled the same way, in the same block in ws_session: tear down
+the old live_cm, connect a fresh one (resumed via the conversation's
+stored resumption_handle when possible), replay any audio chunks that were
+mid-turn when the old session ended, and send a new session_status - all
+without ever closing the BROWSER's own websocket, so the person never has
+to notice or reconnect manually. go_away additionally waits for the
+current turn to finish (via go_away_pending in live_to_browser) before
+reconnecting, since Google gives a time_left warning rather than closing
+immediately; 1011 has no such warning and reconnects right away. Only 1011
+ever switches to the fallback model - go_away reconnects to the SAME
+model, since nothing about it indicates that model is unhealthy.
 """
 
 import asyncio
 import base64
+import re
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from google import genai
 from google.genai import types
 
-from . import memory, retry, scenarios, speech_detection
+from . import memory, observability, quizzes, retry, scenarios, speech_detection
 from .constants import (
-    CORE_TUTOR_RULES,
     DEFAULT_DIFFICULTY,
     DEFAULT_MIC_CALIBRATION_KEY,
     DEFAULT_MODEL,
     DEFAULT_NATIVE_LANGUAGE,
     DEFAULT_TARGET_LANGUAGE,
     DEFAULT_VOICE,
-    DIFFICULTY_INSTRUCTIONS,
     HANDSFREE_SILENCE_RMS_THRESHOLD,
     HANDSFREE_WINDOW_BYTES,
-    MEMORY_CONTEXT_TEMPLATE,
     MODEL_OPTIONS,
-    MOOD_INSTRUCTION,
-    MOOD_TOOL,
     RETRY_ATTEMPTS,
     RETRY_BASE_DELAY,
     SPEAKER_VERIFICATION_THRESHOLD,
     VOICE_OPTIONS,
+    get_api_voice_name,
 )
 from .profiles_store import get_client_for_key, get_profile_by_id, patch_profile
 from .summarization import summarize_conversation
+from .tutor_instructions import build_system_instruction
+from .tutor_tools import MOOD_TOOL, QUIZ_TOOL
 
 router = APIRouter()
+
+# Message types that carry voice input - dropped without any response while
+# a quiz is open (quiz_state["active"]) rather than forwarded to Gemini, per
+# the permanent no-mid-quiz-interruption decision. turn_complete is
+# included alongside start_turn/audio_chunk/handsfree_* even though it
+# carries no audio itself, since honoring one without the other could send
+# an activity_end with no matching activity_start.
+_VOICE_MESSAGE_TYPES = frozenset(
+    {"start_turn", "audio_chunk", "turn_complete", "handsfree_start", "handsfree_chunk", "handsfree_stop"}
+)
+
+
+def _quiz_results_summary(items: list[dict]) -> str:
+    """Builds the bracketed, non-spoken text turn injected into the live
+    session once a quiz is done (see quiz_done handling in ws_session) -
+    tutor_instructions.GUARDRAILS tells the tutor to react to a message
+    shaped like this conversationally rather than read it aloud."""
+    total = len(items)
+    correct = sum(1 for i in items if i["is_correct"])
+    summary = f"[Quiz results: {correct}/{total} correct."
+    missed = [i for i in items if not i["is_correct"]]
+    if missed:
+        missed_desc = ", ".join(f"'{i['target_term']}' (wrote '{i['student_answer'] or ''}')" for i in missed)
+        summary += f" Missed: {missed_desc}."
+    return summary + "]"
+
+
+_BLANK_RE = re.compile(r"\{\d+\}")
+
+
+def _compute_quiz_type(items: list[dict]) -> str:
+    """Derives the quiz_sessions.quiz_type label (a DB/analytics field
+    only - see quizzes.py) from what the items actually contain, since
+    QUIZ_TOOL's schema no longer asks the model for a top-level quiz_type
+    directly - each item now self-declares its own item_type instead (see
+    tutor_tools.py), which is the only thing the frontend actually reads.
+    """
+    item_types = {i.get("item_type") for i in items if isinstance(i, dict)}
+    if item_types == {"multiple_choice"}:
+        return "multiple_choice"
+    if item_types == {"fill_blank_dragdrop"}:
+        return "fill_blank_dragdrop"
+    if item_types:
+        return "mixed"
+    return "multiple_choice"  # empty/malformed items - arbitrary fallback, never actually shown
+
+
+def _validate_quiz_items(items: list[dict]) -> None:
+    """Defense-in-depth only - QUIZ_TOOL's schema already makes
+    correct_answers required for every item (see tutor_tools.py's
+    normalized item shape), so this should rarely fire in practice. Logs
+    (never repairs - see design_plans/issues_fix.md for why a repair
+    heuristic was deliberately rejected) a fill_blank_dragdrop item whose
+    correct_answers length doesn't match its blank count, so a schema-
+    level failure is still visible in the console/Langfuse instead of
+    silently reaching the student as a broken, unwinnable slide.
+    """
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict) or item.get("item_type") != "fill_blank_dragdrop":
+            continue
+        blank_count = len(_BLANK_RE.findall(item.get("text_with_blanks") or ""))
+        answer_count = len(item.get("correct_answers") or [])
+        if blank_count != answer_count:
+            print(
+                f"[start_quiz] item {idx} blank/answer count mismatch: "
+                f"{blank_count} blanks in text_with_blanks vs {answer_count} correct_answers - {item!r}"
+            )
 
 
 def get_active_conversation(profile: dict) -> dict | None:
@@ -124,6 +205,7 @@ def build_config(
     model_name: str,
     resumption_handle: str | None = None,
     summary_text: str | None = None,
+    review_terms: list[str] | None = None,
 ) -> types.LiveConnectConfig:
     name = profile.get("name") or "the student"
     native_language = conv_config.get("native_language") or DEFAULT_NATIVE_LANGUAGE
@@ -133,36 +215,33 @@ def build_config(
         (v.get("alias") or v["name"] for v in VOICE_OPTIONS if v["name"] == voice_name),
         voice_name,
     )
-    fmt_kwargs = {
-        "name": name,
-        "native_language": native_language,
-        "target_language": target_language,
-        "tutor_name": tutor_name,
-    }
 
     scenario_id = conv_config.get("scenario") or scenarios.DEFAULT_SCENARIO
     scenario_template = scenarios.SCENARIO_TEMPLATES.get(scenario_id, scenarios.SCENARIO_TEMPLATES[scenarios.DEFAULT_SCENARIO])
     difficulty = conv_config.get("difficulty") or DEFAULT_DIFFICULTY
-    difficulty_instruction = DIFFICULTY_INSTRUCTIONS.get(difficulty, DIFFICULTY_INSTRUCTIONS[DEFAULT_DIFFICULTY])
 
-    system_instruction = (
-        scenario_template.format(**fmt_kwargs)
-        + CORE_TUTOR_RULES.format(**fmt_kwargs)
-        + difficulty_instruction.format(**fmt_kwargs)
+    system_instruction = build_system_instruction(
+        scenario_template,
+        name=name,
+        native_language=native_language,
+        target_language=target_language,
+        tutor_name=tutor_name,
+        difficulty=difficulty,
+        summary_text=summary_text,
+        review_terms=review_terms,
     )
-    if summary_text:
-        system_instruction += MEMORY_CONTEXT_TEMPLATE.format(name=name, summary=summary_text)
-    system_instruction += MOOD_INSTRUCTION
 
     kwargs = {
         "response_modalities": ["AUDIO"],
         "system_instruction": system_instruction,
-        "tools": [MOOD_TOOL],
+        "tools": [MOOD_TOOL, QUIZ_TOOL],
         "input_audio_transcription": types.AudioTranscriptionConfig(),
         "output_audio_transcription": types.AudioTranscriptionConfig(),
         "speech_config": types.SpeechConfig(
             voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=conv_config.get("voice_name") or DEFAULT_VOICE)
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                    voice_name=get_api_voice_name(conv_config.get("voice_name") or DEFAULT_VOICE)
+                )
             )
         ),
         "realtime_input_config": types.RealtimeInputConfig(
@@ -353,6 +432,7 @@ async def ws_session(websocket: WebSocket):
     config_identity = dict(conv_config)
     resumption_handle = None
     summary_text = None
+    review_terms = None
 
     if conv is not None:
         if conv.get("resumption_config") != config_identity:
@@ -375,12 +455,25 @@ async def ws_session(websocket: WebSocket):
         if summary_row:
             summary_text = summary_row["summary"]
 
+        # Same reasoning as summary_text above - fetched unconditionally,
+        # not just on a fresh session, and computed once here rather than
+        # per build_config call so every fallback/reconnect path below sees
+        # the same list a single connect settled on.
+        review_terms = memory.get_review_candidates(conv["id"])
+
     config = build_config(
         profile,
         conv_config,
         model_name,
         resumption_handle=resumption_handle,
         summary_text=summary_text,
+        review_terms=review_terms,
+    )
+
+    observability.set_profile_keys(
+        profile.get("langfuse_public_key"),
+        profile.get("langfuse_secret_key"),
+        profile.get("langfuse_base_url"),
     )
 
     try:
@@ -431,6 +524,7 @@ async def ws_session(websocket: WebSocket):
                 model_name,
                 resumption_handle=resumption_handle,
                 summary_text=summary_text,
+                review_terms=review_terms,
             )
             try:
                 (
@@ -491,6 +585,30 @@ async def ws_session(websocket: WebSocket):
     except Exception as exc:  # noqa: BLE001
         print(f"[ws_session] send_json failed: {exc}")
 
+    # Voice input is gated (see _VOICE_MESSAGE_TYPES) while quiz_state["active"]
+    # is True - set either here (an unfinished quiz from an earlier app
+    # session, resumed below) or later when the tutor calls start_quiz mid-
+    # conversation (see the tool_call handling in live_to_browser).
+    quiz_state = {"active": False, "quiz_id": None}
+    if conv is not None:
+        in_progress_quiz = quizzes.get_in_progress_quiz(conv["id"])
+        if in_progress_quiz is not None:
+            quiz_state["active"] = True
+            quiz_state["quiz_id"] = in_progress_quiz["quiz_id"]
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "quiz_resume",
+                        "quiz_id": in_progress_quiz["quiz_id"],
+                        "quiz_type": in_progress_quiz["quiz_type"],
+                        "items": in_progress_quiz["payload"].get("items"),
+                        "current_index": in_progress_quiz["current_index"],
+                        "answered_items": in_progress_quiz["answered_items"],
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"[ws_session] send_json failed: {exc}")
+
     # Streamed transcript chunks get batched into one row per speaker per
     # turn (not one row per chunk) and flushed to SQLite when Gemini signals
     # turn_complete. Both sides come from Gemini's own Live API transcription
@@ -517,32 +635,51 @@ async def ws_session(websocket: WebSocket):
     hf_silence_threshold = mic_calibration.get("silence_rms_threshold") or HANDSFREE_SILENCE_RMS_THRESHOLD
     hf_similarity_threshold = mic_calibration.get("speaker_threshold") or SPEAKER_VERIFICATION_THRESHOLD
 
-    async def flush_turn_buffer_to_memory():
-        if conv is None:
-            turn_buffer["user"].clear()
-            turn_buffer["tutor"].clear()
-            return
-
+    async def flush_turn_buffer_to_memory(current_turn_chunks=None, hf_turn_chunks=None):
         user_text = "".join(turn_buffer["user"])
         tutor_text = "".join(turn_buffer["tutor"])
         turn_buffer["user"].clear()
         turn_buffer["tutor"].clear()
-        if user_text.strip():
-            memory.insert_turn(conv["id"], "user", user_text)
-        if tutor_text.strip():
-            memory.insert_turn(conv["id"], "tutor", tutor_text)
 
-        prev = memory.get_summary(conv["id"])
-        since = prev["based_on_turn"] if prev else 0
-        if memory.get_turn_count(conv["id"]) - since >= memory.SUMMARY_FOLD_EVERY_N_TURNS:
-            asyncio.create_task(
-                asyncio.to_thread(
-                    summarize_conversation,
-                    conv["id"],
-                    profile.get("name") or "the student",
-                    profile.get("api_key"),
+        # audio_chunks_sent reuses state that's already tracked for a
+        # completely different reason (replaying a buffered turn to a
+        # fallback model on a 1011 - see current_turn_chunks/hf_turn_chunks
+        # above), not new bookkeeping added just for this. It's a concrete,
+        # queryable signal for one specific failure mode worth being able to
+        # search for later: a tutor turn with real spoken content but zero
+        # forwarded audio chunks means the tutor generated a response with
+        # no real student input behind it that turn.
+        audio_chunks_sent = len(current_turn_chunks or []) + len(hf_turn_chunks or [])
+        with observability.span(
+            "conversation_turn",
+            as_type="generation",
+            input=user_text or None,
+            model=model_name,
+            metadata={"audio_chunks_sent": audio_chunks_sent},
+            session_id=(conv or {}).get("id"),
+            user_id=profile.get("id"),
+        ) as gen:
+            observability.update(gen, output=tutor_text or None)
+
+            if conv is None:
+                return
+
+            if user_text.strip():
+                memory.insert_turn(conv["id"], "user", user_text)
+            if tutor_text.strip():
+                memory.insert_turn(conv["id"], "tutor", tutor_text)
+
+            prev = memory.get_summary(conv["id"])
+            since = prev["based_on_turn"] if prev else 0
+            if memory.get_turn_count(conv["id"]) - since >= memory.SUMMARY_FOLD_EVERY_N_TURNS:
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        summarize_conversation,
+                        conv["id"],
+                        profile.get("name") or "the student",
+                        profile.get("api_key"),
+                    )
                 )
-            )
 
     try:
         while True:
@@ -617,6 +754,9 @@ async def ws_session(websocket: WebSocket):
                         msg = await websocket.receive_json()
                         msg_type = msg.get("type")
 
+                        if quiz_state["active"] and msg_type in _VOICE_MESSAGE_TYPES:
+                            continue  # voice input gated while a quiz is open - see quiz_state
+
                         try:
                             if msg_type == "start_turn":
                                 _current_turn_chunks.clear()
@@ -647,6 +787,67 @@ async def ws_session(websocket: WebSocket):
                                     await _live_session.send_realtime_input(activity_end=types.ActivityEnd())
                                     hf_state["turn_active"] = False
                                     _hf_turn_chunks.clear()  # turn completed normally on mute - nothing left to replay
+                            elif msg_type == "quiz_answer":
+                                quizzes.record_item_answer(
+                                    msg["quiz_id"],
+                                    item_index=msg["item_index"],
+                                    target_term=msg["target_term"],
+                                    prompt_or_text=msg["prompt_or_text"],
+                                    correct_answer=msg["correct_answer"],
+                                    student_answer=msg.get("student_answer"),
+                                    is_correct=bool(msg["is_correct"]),
+                                )
+                            elif msg_type == "quiz_done":
+                                quiz_id = msg["quiz_id"]
+                                quizzes.finalize_quiz_session(quiz_id, status="completed")
+                                quiz_state["active"] = False
+                                quiz_state["quiz_id"] = None
+                                items = quizzes.get_quiz_items(quiz_id)
+                                summary = _quiz_results_summary(items)
+                                with observability.span(
+                                    "quiz_done",
+                                    input={"quiz_id": quiz_id},
+                                    metadata={
+                                        "total": len(items),
+                                        "correct": sum(1 for i in items if i["is_correct"]),
+                                    },
+                                    session_id=(conv or {}).get("id"),
+                                    user_id=profile.get("id"),
+                                ):
+                                    pass
+                                try:
+                                    await _live_session.send_client_content(
+                                        turns=types.Content(role="user", parts=[types.Part(text=summary)]),
+                                        turn_complete=True,
+                                    )
+                                except Exception as e:  # noqa: BLE001
+                                    print(f"[browser_to_live] quiz results injection failed: {type(e).__name__}: {e}")
+                            elif msg_type == "quiz_skip":
+                                quiz_id = msg["quiz_id"]
+                                quizzes.finalize_quiz_session(quiz_id, status="skipped")
+                                quiz_state["active"] = False
+                                quiz_state["quiz_id"] = None
+                                answered = [i for i in quizzes.get_quiz_items(quiz_id) if i["student_answer"] is not None]
+                                with observability.span(
+                                    "quiz_skip",
+                                    input={"quiz_id": quiz_id},
+                                    metadata={"answered_count": len(answered)},
+                                    session_id=(conv or {}).get("id"),
+                                    user_id=profile.get("id"),
+                                ):
+                                    pass
+                                if answered:
+                                    correct = sum(1 for i in answered if i["is_correct"])
+                                    summary = f"[Quiz skipped partway through: {correct}/{len(answered)} answered correctly before stopping.]"
+                                else:
+                                    summary = "[Quiz skipped before answering anything.]"
+                                try:
+                                    await _live_session.send_client_content(
+                                        turns=types.Content(role="user", parts=[types.Part(text=summary)]),
+                                        turn_complete=True,
+                                    )
+                                except Exception as e:  # noqa: BLE001
+                                    print(f"[browser_to_live] quiz skip injection failed: {type(e).__name__}: {e}")
                             elif msg_type == "close":
                                 return
                         except Exception as e:
@@ -659,7 +860,12 @@ async def ws_session(websocket: WebSocket):
                             )
                             raise
 
-                async def live_to_browser(_live_session=live_session, _config_identity=config_identity):
+                async def live_to_browser(
+                    _live_session=live_session,
+                    _config_identity=config_identity,
+                    _current_turn_chunks=current_turn_chunks,
+                    _hf_turn_chunks=hf_turn_chunks,
+                ):
                     go_away_pending = False
                     while True:
                         async for response in _live_session.receive():
@@ -672,7 +878,7 @@ async def ws_session(websocket: WebSocket):
 
                             if go_away_pending and sc and getattr(sc, "turn_complete", False):
                                 go_away_pending = False
-                                await flush_turn_buffer_to_memory()
+                                await flush_turn_buffer_to_memory(_current_turn_chunks, _hf_turn_chunks)
                                 await websocket.send_json({"type": "turn_complete"})
                                 return
 
@@ -702,7 +908,57 @@ async def ws_session(websocket: WebSocket):
                                 for fc in tool_call.function_calls:
                                     if fc.name == "set_mood":
                                         mood = (fc.args or {}).get("mood", "neutral")
+                                        with observability.span(
+                                            "tool_call:set_mood",
+                                            input=dict(fc.args or {}),
+                                            session_id=(conv or {}).get("id"),
+                                            user_id=profile.get("id"),
+                                        ):
+                                            pass
                                         await websocket.send_json({"type": "mood_change", "mood": mood})
+                                    elif fc.name == "start_quiz" and conv is not None:
+                                        # Duplicate-quiz guard: if the student never
+                                        # finished a previous quiz (possibly from an
+                                        # earlier app session - already re-shown via
+                                        # quiz_resume above), re-show that one instead
+                                        # of starting a second one, so there's never
+                                        # more than one in-progress quiz per
+                                        # conversation to keep track of.
+                                        existing = quizzes.get_in_progress_quiz(conv["id"])
+                                        if existing is not None:
+                                            quiz_id = existing["quiz_id"]
+                                            payload = existing["payload"]
+                                        else:
+                                            payload = dict(fc.args or {})
+                                            items = payload.get("items") or []
+                                            _validate_quiz_items(items)
+                                            quiz_id = quizzes.start_quiz_session(conv["id"], _compute_quiz_type(items), payload)
+                                        # Recorded in full, not summarized - this is
+                                        # exactly the artifact needed to permanently
+                                        # diagnose a malformed generated quiz (see
+                                        # design_plans/issues_fix.md and the
+                                        # defensive per-item validation in
+                                        # quizRenderers.js/quizDragDrop.js): every
+                                        # quiz payload the tutor ever generates is now
+                                        # queryable in Langfuse, whether or not the
+                                        # student happened to notice a bad slide.
+                                        with observability.span(
+                                            "tool_call:start_quiz",
+                                            input=payload,
+                                            metadata={"reused_in_progress": existing is not None, "quiz_id": quiz_id},
+                                            session_id=conv["id"],
+                                            user_id=profile.get("id"),
+                                        ):
+                                            pass
+                                        quiz_state["active"] = True
+                                        quiz_state["quiz_id"] = quiz_id
+                                        await websocket.send_json(
+                                            {
+                                                "type": "quiz_start",
+                                                "quiz_id": quiz_id,
+                                                "items": payload.get("items"),
+                                            }
+                                        )
                                     function_responses.append(
                                         types.FunctionResponse(
                                             id=fc.id,
@@ -730,7 +986,7 @@ async def ws_session(websocket: WebSocket):
                                     memory.set_resumption(conv["id"], new_handle, _config_identity)
 
                             if sc and getattr(sc, "turn_complete", False):
-                                await flush_turn_buffer_to_memory()
+                                await flush_turn_buffer_to_memory(_current_turn_chunks, _hf_turn_chunks)
                                 await websocket.send_json({"type": "turn_complete"})
 
                 tasks = [
@@ -770,6 +1026,7 @@ async def ws_session(websocket: WebSocket):
                         model_name,
                         resumption_handle=resumption_handle,
                         summary_text=summary_text,
+                        review_terms=review_terms,
                     )
                     (
                         live_cm,
@@ -835,7 +1092,11 @@ async def ws_session(websocket: WebSocket):
                     print(f"[ws_session] send_json failed: {exc}")
                 break
     finally:
-        await flush_turn_buffer_to_memory()
+        # current_turn_chunks/hf_turn_chunks are always bound by the time we
+        # reach here - this finally sits after the while loop, which always
+        # runs its body at least once before any path that reaches this
+        # point.
+        await flush_turn_buffer_to_memory(current_turn_chunks, hf_turn_chunks)
         if conv is not None:
             # Final fold on disconnect - catches the tail so a session that
             # ends mid-way through a summarization interval isn't lost, and

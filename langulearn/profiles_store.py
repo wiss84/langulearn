@@ -51,6 +51,23 @@ def delete_profile(profile_id: str) -> bool:
     return False
 
 
+def upsert_profile(profile: dict) -> None:
+    """Replaces an existing profile entirely if its id already exists
+    (import re-running over the same profile, or restoring a backup onto a
+    profile that's still present locally), otherwise appends it as new.
+    Unlike patch_profile, this doesn't merge fields into an existing entry -
+    the given dict fully replaces whatever was there.
+    """
+    profiles = load_profiles()
+    for i, p in enumerate(profiles):
+        if p["id"] == profile["id"]:
+            profiles[i] = profile
+            save_profiles(profiles)
+            return
+    profiles.append(profile)
+    save_profiles(profiles)
+
+
 def get_client_for_key(api_key: str | None) -> genai.Client:
     """Builds a Gemini client from a profile's own API key. Each profile
     carries its own key (see constants.PROFILE_EDITABLE_FIELDS) - there's

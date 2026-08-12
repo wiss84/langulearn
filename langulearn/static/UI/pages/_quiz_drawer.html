@@ -1,0 +1,45 @@
+<!--
+  Quiz drawer (learning page). See quiz_drawer.css for the fixed-overlay
+  positioning rationale (works identically in all three avatar-drawer
+  states: closed, open, fullscreen). All content inside is rendered by
+  quizDrawer.js (orchestration) via quizRenderers.js (multiple_choice /
+  fill_blank_typed) and quizDragDrop.js (fill_blank_dragdrop) - this file
+  only provides the static chrome those scripts populate. Starts closed;
+  quizDrawer.js adds "open" (and "wide" for fill_blank_dragdrop) once a
+  quiz_start/quiz_resume message arrives.
+-->
+<div id="quizDrawer">
+  <div id="quizDrawerHeader">
+    <div class="quiz-progress-row">
+      <div class="quiz-progress-left">
+        <button id="quizBackBtn" class="quiz-skip-btn" type="button" style="display: none;">&lsaquo; Back</button>
+        <span id="quizProgressLabel" class="quiz-progress-label"></span>
+      </div>
+      <!-- Always visible (not just for resumed quizzes) - a fresh quiz
+           can hit a malformed slide with no other way out. See
+           quizDrawer.js's openQuizDrawer. -->
+      <button id="quizSkipBtn" class="quiz-skip-btn" type="button">Skip this quiz</button>
+    </div>
+    <div class="quiz-progress-track">
+      <div id="quizProgressFill" class="quiz-progress-fill" style="width: 0%;"></div>
+    </div>
+  </div>
+
+  <div id="quizDrawerBody">
+    <p id="quizIntro" class="quiz-intro"></p>
+    <div id="quizSlide"></div>
+  </div>
+
+  <div id="quizDrawerFooter">
+    <button id="quizNextBtn" class="primary-btn" type="button" disabled>Next</button>
+  </div>
+
+  <!-- Screen-reader-only feedback for correct/incorrect answers - the
+       red/green flash isn't the only signal (see quizDrawer.js's
+       announceQuizResult). -->
+  <div
+    id="quizAnnounce"
+    style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;"
+    aria-live="polite"
+  ></div>
+</div>

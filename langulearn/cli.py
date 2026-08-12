@@ -25,23 +25,10 @@ import shutil
 import stat
 import subprocess
 import sys
-import tempfile
-import zipfile
 from pathlib import Path
 
-from .constants import ASSETS_DIR, ASSETS_RELEASE_TAG, ASSETS_VERSION, DATA_DIR
-
-GITHUB_REPO = "wiss84/langulearn"
-
-# Each zip's contents are extracted flat into ASSETS_DIR/<key>/ - e.g.
-# avatars.zip should contain the .glb files directly at its root (Kore_th.glb,
-# Puck_th.glb, ...), not nested inside an "avatar/" folder of their own -
-# zip the folder's *contents*, not the folder itself, when cutting a release.
-_ASSET_FILES = {
-    "avatar": "avatars.zip",
-    "voices": "voices.zip",
-    "photos": "photos.zip",
-}
+from .constants import ASSETS_VERSION, DATA_DIR
+from .updater import check_app_update, download_and_extract_assets
 
 _SETUP_MARKER = DATA_DIR / ".setup_complete"
 
@@ -89,94 +76,10 @@ def _install_extra_deps(console) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Step 2: avatar/voice/photo assets
+# Step 2: avatar/voice/photo assets - see updater.py (shared with the
+# running app's own "Update Assets" button, so there's one place that
+# knows how to check/download these instead of two copies drifting apart).
 # ---------------------------------------------------------------------------
-
-
-def _asset_url(filename: str) -> str:
-    return f"https://github.com/{GITHUB_REPO}/releases/download/{ASSETS_RELEASE_TAG}/{filename}"
-
-
-def _assets_marker_path() -> Path:
-    return ASSETS_DIR / ".assets_version"
-
-
-def _assets_up_to_date() -> bool:
-    marker = _assets_marker_path()
-    return marker.is_file() and marker.read_text(encoding="utf-8").strip() == ASSETS_VERSION
-
-
-def _download_with_progress(url: str, dest: Path, console) -> None:
-    import urllib.error
-    import urllib.request
-
-    req = urllib.request.Request(url, headers={"User-Agent": "langulearn-setup"})
-    try:
-        from rich.progress import (
-            BarColumn,
-            DownloadColumn,
-            Progress,
-            TimeRemainingColumn,
-            TransferSpeedColumn,
-        )
-
-        with urllib.request.urlopen(req) as resp:
-            total = int(resp.headers.get("Content-Length", 0)) or None
-            with Progress(
-                "[progress.description]{task.description}",
-                BarColumn(),
-                DownloadColumn(),
-                TransferSpeedColumn(),
-                TimeRemainingColumn(),
-                console=console,
-            ) as progress:
-                task = progress.add_task(dest.name, total=total)
-                with open(dest, "wb") as f:
-                    while True:
-                        chunk = resp.read(1024 * 256)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        progress.update(task, advance=len(chunk))
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            raise RuntimeError(
-                f"Could not download {dest.name} (404 Not Found) from:\n  {url}\n"
-                f"The '{ASSETS_RELEASE_TAG}' GitHub Release probably hasn't been published yet "
-                "(or doesn't have this file attached) - see RELEASING_ASSETS.md for how to publish it."
-            ) from e
-        raise
-    except ImportError:
-        # rich missing (shouldn't normally happen - it's a real dependency,
-        # not optional - but this keeps a download possible either way
-        # rather than hard-failing setup over a missing progress bar).
-        console.print(f"Downloading {dest.name} (no progress bar available)...")
-        with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
-            shutil.copyfileobj(resp, f)
-
-
-def _download_and_extract_assets(console, force: bool = False) -> None:
-    if not force and _assets_up_to_date():
-        console.print("[dim]Avatar/voice/photo assets already up to date - skipping download.[/dim]")
-        return
-
-    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="langulearn-assets-") as tmp:
-        tmp_path = Path(tmp)
-        for kind, filename in _ASSET_FILES.items():
-            url = _asset_url(filename)
-            zip_path = tmp_path / filename
-            console.print(f"Downloading {filename} from {url} ...")
-            _download_with_progress(url, zip_path, console)
-
-            dest_dir = ASSETS_DIR / kind
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            console.print(f"Extracting {filename} ...")
-            with zipfile.ZipFile(zip_path) as zf:
-                zf.extractall(dest_dir)
-
-    _assets_marker_path().write_text(ASSETS_VERSION, encoding="utf-8")
-    console.print("[green]\u2713[/green] Avatar/voice/photo assets ready.")
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +233,7 @@ def run_setup(force: bool = False) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     _install_extra_deps(console)
-    _download_and_extract_assets(console, force=force)
+    download_and_extract_assets(force=force, console=console)
     _create_desktop_shortcut(console)
 
     _SETUP_MARKER.write_text(ASSETS_VERSION, encoding="utf-8")
@@ -343,6 +246,25 @@ def _setup_already_done() -> bool:
     return _SETUP_MARKER.is_file() and _SETUP_MARKER.read_text(encoding="utf-8").strip() == ASSETS_VERSION
 
 
+def _print_app_update_notice(console) -> None:
+    """Short timeout and swallows every failure, so a normal launch never
+    visibly waits on this or breaks over a flaky connection - offline just
+    means no notice gets printed, same as if the check were never run at
+    all. The web app runs the equivalent check itself (see routes_api.py's
+    /api/update-status) for anyone launching via a desktop shortcut who'd
+    never see this console output.
+    """
+    try:
+        info = check_app_update(timeout=2.0)
+    except Exception:
+        return
+    if info.get("update_available"):
+        console.print(
+            f"[yellow]A newer LanguLearn is available: v{info['current']} \u2192 v{info['latest']}.[/yellow] "
+            "Run 'pip install --upgrade langulearn' to update, or use the update notification in the app itself."
+        )
+
+
 def cmd_setup(args: argparse.Namespace) -> None:
     run_setup(force=args.force)
 
@@ -350,6 +272,8 @@ def cmd_setup(args: argparse.Namespace) -> None:
 def cmd_run(args: argparse.Namespace) -> None:
     if not _setup_already_done():
         run_setup(force=False)
+    else:
+        _print_app_update_notice(_console())
     from . import desktop
 
     desktop.run(host=args.host, port=args.port)

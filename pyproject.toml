@@ -48,11 +48,15 @@ dependencies = [
     "librosa",
     "scipy",
     "rich",
+    "markdown",
     "pywin32; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-cov", "httpx", "httpx2", "ruff"]
+dev = ["pytest", "pytest-asyncio", "pytest-cov", "httpx", "httpx2", "ruff", "langfuse"]
+# Fully opt-in - see observability.py's module docstring. Nothing else in
+# this app imports `langfuse` unconditionally, so installing without this
+# extra is completely unaffected.
 
 [project.urls]
 Homepage = "https://github.com/wiss84/langulearn"
@@ -76,8 +80,8 @@ include = ["langulearn*"]
 # Everything under langulearn/static/ (UI/, vendor/, pcm-processor.js, the
 # platform icons) ships with the wheel - avatar/voice/photo assets do NOT
 # live here at all (see constants.py's ASSETS_DIR and cli.py) since they're
-# ~450MB and downloaded separately on first run instead.
-langulearn = ["static/**/*"]
+# ~300MB and downloaded separately on first run instead.
+langulearn = ["static/**/*", "releases/*.md"]
 
 # ---------------------------------------------------------------------------
 # Testing

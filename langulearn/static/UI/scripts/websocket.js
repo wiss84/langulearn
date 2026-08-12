@@ -108,6 +108,10 @@ function connectWebSocket() {
       noteConversationActivity();
     } else if (msg.type === 'mood_change') {
       if (window.setAvatarMood) window.setAvatarMood(msg.mood);
+    } else if (msg.type === 'quiz_start') {
+      if (window.openQuizDrawer) window.openQuizDrawer(msg, { resumed: false });
+    } else if (msg.type === 'quiz_resume') {
+      if (window.openQuizDrawer) window.openQuizDrawer(msg, { resumed: true });
     } else if (msg.type === 'session_status') {
       showSessionStatus(msg.resumed);
       setModelLampState(msg.unavailable ? 'unavailable' : 'connected', msg.model_name);

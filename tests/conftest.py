@@ -22,18 +22,18 @@ def pytest_configure(config):
 # Data-directory isolation
 # ---------------------------------------------------------------------------
 # constants.py resolves DATA_DIR via platformdirs (the real, OS-managed
-# LanguLearn data directory) - tests must never touch that. memory.py and
-# profiles_store.py each did `from .constants import DATA_DIR` (and their
-# own derived paths), which copies the *value* into their own module
-# namespace at import time - patching constants.DATA_DIR alone would not
-# affect memory.DATA_DIR or profiles_store.DATA_DIR, so each is patched
-# individually below. Autouse: every test gets a fresh, empty data dir with
-# no action needed on its part.
+# LanguLearn data directory) - tests must never touch that. memory.py,
+# quizzes.py, and profiles_store.py each did `from .constants import
+# DATA_DIR` (and their own derived paths), which copies the *value* into
+# their own module namespace at import time - patching constants.DATA_DIR
+# alone would not affect memory.DATA_DIR/quizzes.DATA_DIR/
+# profiles_store.DATA_DIR, so each is patched individually below. Autouse:
+# every test gets a fresh, empty data dir with no action needed on its part.
 
 
 @pytest.fixture(autouse=True)
 def isolated_data_dir(tmp_path, monkeypatch):
-    from langulearn import constants, memory, profiles_store
+    from langulearn import constants, memory, profiles_store, quizzes
     from langulearn.speech_detection import enrollment
 
     data_dir = tmp_path / "data"
@@ -42,13 +42,41 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(constants, "DATA_DIR", data_dir)
     monkeypatch.setattr(memory, "DATA_DIR", data_dir)
     monkeypatch.setattr(memory, "DB_FILE", data_dir / "memory.db")
+    monkeypatch.setattr(quizzes, "DATA_DIR", data_dir)
+    monkeypatch.setattr(quizzes, "DB_FILE", data_dir / "memory.db")
     monkeypatch.setattr(profiles_store, "DATA_DIR", data_dir)
     monkeypatch.setattr(profiles_store, "PROFILES_FILE", data_dir / "profiles.json")
     monkeypatch.setattr(constants, "VOICE_ENROLLMENT_DIR", data_dir / "voice_enrollment")
     monkeypatch.setattr(enrollment, "VOICE_ENROLLMENT_DIR", data_dir / "voice_enrollment")
 
     memory.init_db()
+    quizzes.init_db()
     yield data_dir
+
+
+# ---------------------------------------------------------------------------
+# Langfuse tracing isolation
+# ---------------------------------------------------------------------------
+# observability.py is fully opt-in based on LANGFUSE_PUBLIC_KEY/
+# LANGFUSE_SECRET_KEY - without this fixture, a real key pair happening to
+# be set in whatever shell runs the test suite (increasingly likely now
+# that this project actually uses Langfuse for real) could make tests
+# silently attempt real network calls. Autouse and unconditional: tests
+# that want tracing "enabled" behavior monkeypatch observability.ENABLED
+# directly instead (see test_observability.py) rather than relying on real
+# env vars ever being present during a test run.
+
+
+@pytest.fixture(autouse=True)
+def isolated_observability(monkeypatch):
+    from langulearn import observability
+
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_BASE_URL", raising=False)
+    observability.set_profile_keys(None, None)
+    monkeypatch.setattr(observability, "_client", None)
+    monkeypatch.setattr(observability, "_broken", False)
 
 
 # ---------------------------------------------------------------------------

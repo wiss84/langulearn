@@ -29,6 +29,15 @@
       <h1 id="appTitle">{% block topbar_left_extra %}<span class="app-name-text">LanguLearn</span>{% endblock %}</h1>
     </div>
     <div id="topbarRight">
+      <div id="updateBellWrap">
+        <button id="updateBellBtn" class="icon-btn" type="button" title="Notifications">
+          🔔<span id="updateBellDot" class="update-badge-count" hidden></span>
+        </button>
+        <div id="updateBellDropdown" class="update-dropdown">
+          <div id="updateNotificationList"></div>
+          <p id="updateBellEmptyText" class="update-dropdown-message">You're all caught up - no notifications right now.</p>
+        </div>
+      </div>
       {% block topbar_right %}{% endblock %}
       {% block theme_toggle %}<button id="themeToggleBtn" class="icon-btn" type="button" title="Switch theme">🌙</button>{% endblock %}
     </div>
@@ -37,8 +46,21 @@
     {% block content %}{% endblock %}
   </div>
 </div>
+<div id="updateDetailOverlay">
+  <div id="updateDetailModal">
+    <button id="closeUpdateDetailBtn" class="icon-btn" type="button" title="Close">&#10005;</button>
+    <h3 id="updateDetailTitle">Update available</h3>
+    <p id="updateDetailMessage" class="update-dropdown-message"></p>
+    <div class="update-dropdown-actions">
+      <button id="updateDetailActionBtn" class="pill-btn update-action-btn" type="button"></button>
+      <button id="updateDetailSkipBtn" class="update-dropdown-item" type="button">Skip for now</button>
+    </div>
+    <p id="updateDetailStatus" class="update-dropdown-status"></p>
+  </div>
+</div>
 {% block modals %}{% endblock %}
 <script src="/UI/scripts/theme.js"></script>
+<script src="/UI/scripts/update.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

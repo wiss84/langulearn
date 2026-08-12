@@ -224,7 +224,15 @@ function ensureMicReady() {
         pcmBufferedSamples += event.data.length;
         flushPcmBuffer(false);
       }
-      if (handsFreeActive) {
+      // Dropped (not buffered/sent at all) while the tutor's own audio is
+      // still playing, rather than gating at the hands-free toggle level -
+      // hands-free is a continuous mode with no per-turn press, so the mic
+      // stays open through the tutor's reply; without this, that reply
+      // would get picked up by the mic and forwarded straight back to
+      // Gemini as if the student had spoken over it. Mirrors the backend's
+      // own drop-while-quiz-active pattern (_VOICE_MESSAGE_TYPES in
+      // live_session.py), just gated on speech instead of quiz state.
+      if (handsFreeActive && !isTutorSpeaking()) {
         hfBuffer.push(event.data);
         hfBufferedSamples += event.data.length;
         flushHfBuffer(false);
@@ -238,7 +246,9 @@ function ensureMicReady() {
 
 async function startRecording() {
   if (isRecording) return;
+  if (quizActive) { showError('Finish or skip the quiz to use push-to-talk.'); return; }
   if (handsFreeActive) { showError('Turn off hands-free mode to use push-to-talk.'); return; }
+  if (isTutorSpeaking()) { showError('Wait for the tutor to finish speaking.'); return; }
   if (!ws || ws.readyState !== WebSocket.OPEN) { showError('Not connected yet.'); return; }
   showError('');
 
@@ -294,6 +304,7 @@ function isTypingTarget(el) {
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
   e.preventDefault(); // stop the page from scrolling on spacebar
+  if (quizActive || isTutorSpeaking()) return; // startRecording() also gates on these, but skip the error/log noise entirely here
   startRecording();
 });
 
@@ -344,6 +355,7 @@ async function setHandsFreeActive(active) {
 }
 
 handsFreeBtn.addEventListener('click', () => {
+  if (quizActive) { showError('Finish or skip the quiz to use hands-free mode.'); return; }
   if (!handsFreeActive) {
     // Gate on the hands-free-setup page (mic calibration + voice enrollment
     // + per-mic threshold test) before ever opening a hands-free session -

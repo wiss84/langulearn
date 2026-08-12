@@ -562,7 +562,12 @@ let thresholdTestSentences = null;
 let thresholdTestNoisePrompt = null;
 let collectedScores = [];
 
+// Replaces whatever's currently shown rather than appending - only one
+// sentence/status is ever visible at a time, so a completed reading gets
+// cleaned away and replaced by the next prompt instead of the log growing
+// into a scrolling list.
 function addTestLogLine(text, active) {
+  thresholdTestLog.innerHTML = '';
   const line = document.createElement('div');
   line.className = 'hf-test-line' + (active ? ' hf-test-active' : '');
   line.textContent = text;
@@ -653,14 +658,28 @@ async function runThresholdTests() {
   }
 
   startTestsBtn.disabled = true;
-  thresholdTestLog.innerHTML = '';
   collectedScores = [];
 
   if (!thresholdTestSentences) {
-    const res = await fetch('/api/threshold-test-sentences');
-    const data = await res.json();
-    thresholdTestSentences = data.sentences || [];
-    thresholdTestNoisePrompt = data.noise_prompt || 'Stay quiet, or make some noise without speaking.';
+    // Shown immediately, before the await below - without this, the log
+    // area just sits empty for however long the request takes (a real gap
+    // on this route's first hit), which reads as "nothing happened" rather
+    // than "loading".
+    addTestLogLine('Loading test sentences...', false);
+    try {
+      const res = await fetch('/api/threshold-test-sentences');
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json();
+      thresholdTestSentences = data.sentences || [];
+      thresholdTestNoisePrompt = data.noise_prompt || 'Stay quiet, or make some noise without speaking.';
+    } catch (e) {
+      console.error(e);
+      addTestLogLine('Could not load the test sentences - check your connection and click Start tests again.', false);
+      startTestsBtn.disabled = false;
+      return;
+    }
+  } else {
+    thresholdTestLog.innerHTML = '';
   }
 
   for (const sentence of thresholdTestSentences) {
