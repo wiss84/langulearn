@@ -288,9 +288,9 @@ DEFAULT_MODEL = MODEL_OPTIONS[1]["id"]
 # routes_api.get_app_info (the Settings modal's About tab) prefers reading
 # the INSTALLED package's own metadata via importlib.metadata instead of
 # importing this directly, falling back to this constant only if the
-# package isn't recognized as installed at all (e.g. running straight from
+# package isn't recognized as installed at all (e.g. running straight fromgit 
 # a source checkout without ever having been pip-installed).
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 
 # OS-appropriate per-user data directory (profiles.json, memory.db,
 # voice_enrollment/) instead of storing user data inside the package tree
