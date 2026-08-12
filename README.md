@@ -23,6 +23,13 @@ You hold to talk → speak → Gemini Live API (audio in, audio out) → avatar 
 
 ---
 
+## Demo Videos
+
+- **0.2.0 Release** — Watch the full [LanguLearn Quiz System](https://youtu.be/9d4UrbZbwfU)
+- **0.1.0  Initial Release** — Watch the full [LanguLearn Tutorial](https://youtu.be/0YEskMeH4Gk)
+
+---
+
 ## Why this instead of a text chatbot?
 
 Most "AI language tutors" tools are really just a chat window with a system prompt. That's fine for grammar explanations, but it doesn't train the thing that actually makes a language hard to speak: real-time listening and speaking under mild pressure, and actually correcting you as you go.
