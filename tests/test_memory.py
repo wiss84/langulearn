@@ -188,6 +188,86 @@ def test_upsert_vocab_mistake_ignores_blank_term():
     assert memory.get_vocab_mistakes(conv["id"]) == []
 
 
+# --- Spaced repetition (record_term_review / get_review_candidates) ---
+
+
+def test_record_term_review_correct_for_unknown_term_is_a_noop():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=True)
+    assert memory.get_vocab_mistakes(conv["id"]) == []
+    assert memory.get_review_candidates(conv["id"]) == []
+
+
+def test_record_term_review_incorrect_creates_row_like_upsert_vocab_mistake():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+
+    rows = memory.get_vocab_mistakes(conv["id"])
+    assert len(rows) == 1
+    assert rows[0]["term"] == "el clima"
+    assert rows[0]["occurrences"] == 1
+    assert rows[0]["correct_streak"] == 0
+
+
+def test_missed_term_appears_in_review_candidates():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+    assert memory.get_review_candidates(conv["id"]) == ["el clima"]
+
+
+def test_review_candidates_ordered_by_occurrences_then_recency():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+    memory.record_term_review(conv["id"], "sin embargo", correct=False)
+    memory.record_term_review(conv["id"], "sin embargo", correct=False)  # missed twice - higher priority
+
+    assert memory.get_review_candidates(conv["id"]) == ["sin embargo", "el clima"]
+
+
+def test_two_correct_streaks_retires_term_from_review_candidates():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+    memory.record_term_review(conv["id"], "el clima", correct=True)
+    assert memory.get_review_candidates(conv["id"]) == ["el clima"]  # one clean answer isn't enough yet
+
+    memory.record_term_review(conv["id"], "el clima", correct=True)
+    assert memory.get_review_candidates(conv["id"]) == []  # two in a row retires it
+
+    rows = memory.get_vocab_mistakes(conv["id"])
+    assert rows[0]["correct_streak"] == 2
+    assert rows[0]["occurrences"] == 1  # correct answers never bump occurrences
+
+
+def test_incorrect_after_streak_resets_it_and_reappears():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+    memory.record_term_review(conv["id"], "el clima", correct=True)
+    memory.record_term_review(conv["id"], "el clima", correct=True)
+    assert memory.get_review_candidates(conv["id"]) == []
+
+    memory.record_term_review(conv["id"], "el clima", correct=False)
+    assert memory.get_review_candidates(conv["id"]) == ["el clima"]
+
+    rows = memory.get_vocab_mistakes(conv["id"])
+    assert rows[0]["correct_streak"] == 0
+    assert rows[0]["occurrences"] == 2
+
+
+def test_review_candidates_respects_limit():
+    conv = memory.create_conversation("profile-1", {"target_language": "Spanish"})
+    for term in ["uno", "dos", "tres", "cuatro"]:
+        memory.record_term_review(conv["id"], term, correct=False)
+    assert len(memory.get_review_candidates(conv["id"], limit=2)) == 2
+
+
+def test_init_db_migration_is_idempotent():
+    # isolated_data_dir already calls init_db() once; calling it again here
+    # exercises the ALTER TABLE ADD COLUMN path against a table that
+    # already has the column, which must not raise.
+    memory.init_db()
+    memory.init_db()
+
+
 # --- Lesson log ---
 
 

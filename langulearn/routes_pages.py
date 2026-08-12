@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
+from . import updater
+
 # Frontend is composed via Jinja2 from static/UI (index.html layout +
 # pages/ + styles/ + scripts/) instead of one flat index.html/app.js/
 # style.css, so pages/styles/scripts stay short and descriptively named
@@ -48,3 +50,23 @@ async def serve_profiles_page(request: Request):
 @router.get("/handsfree-setup")
 async def serve_handsfree_setup_page(request: Request):
     return templates.TemplateResponse(request, "pages/handsfree_setup.html")
+
+
+@router.get("/whats-new")
+async def serve_whats_new_page(request: Request, version: str | None = None):
+    installed_version = updater.installed_app_version()
+    updater.mark_version_seen(installed_version)
+
+    shown_version = version or installed_version
+    html = updater.render_release_notes_html(shown_version)
+    versions = updater.list_release_versions()
+
+    return templates.TemplateResponse(
+        request,
+        "pages/whats_new.html",
+        {
+            "shown_version": shown_version,
+            "release_html": html,
+            "versions": versions,
+        },
+    )

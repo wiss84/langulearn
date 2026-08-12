@@ -1,0 +1,94 @@
+#whatsNewWrap {
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px 60px;
+}
+
+#whatsNewCard {
+  width: 100%;
+  max-width: 760px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px;
+}
+
+#whatsNewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+#whatsNewTitle {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+#whatsNewVersionSelect {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+#whatsNewBody {
+  font-family: var(--font-body);
+  color: var(--text);
+  line-height: 1.6;
+}
+#whatsNewBody h1 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 20px 0 4px;
+}
+#whatsNewBody h1:first-child { margin-top: 0; }
+#whatsNewBody h2 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--accent);
+  margin: 20px 0 8px;
+}
+#whatsNewBody em {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+#whatsNewBody ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+#whatsNewBody li { margin-bottom: 8px; }
+#whatsNewBody p { margin: 0 0 12px; }
+
+#whatsNewEmpty {
+  font-family: var(--font-body);
+  color: var(--text-muted);
+}
+
+#whatsNewFooter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+#whatsNewCloseBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+#whatsNewCloseBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

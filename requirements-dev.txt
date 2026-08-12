@@ -9,3 +9,4 @@ httpx
 httpx2
 ruff
 numpy
+langfuse

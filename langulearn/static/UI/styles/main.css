@@ -79,6 +79,12 @@
   padding: 20px 0 32px;
 }
 
+#talkRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 #talkBtn {
   position: relative;
   width: 84px;
@@ -102,6 +108,17 @@
   animation: pulse-ring 1.1s ease-out infinite;
 }
 #talkBtn svg { width: 30px; height: 30px; fill: #fff; }
+
+#handsFreeBtn svg,
+#cameraToggleBtn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 @keyframes breathe {
   0%, 100% { box-shadow: 0 0 0 0 rgba(193, 64, 61, 0.25); }

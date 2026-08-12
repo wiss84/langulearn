@@ -23,7 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import live_session, memory, routes_api, routes_pages, speech_detection
+from . import live_session, memory, quizzes, routes_api, routes_pages, speech_detection
 from .constants import ASSETS_DIR
 
 # StaticFiles doesn't know the .mjs extension, so it serves ES modules as
@@ -47,6 +47,7 @@ async def _warm_up_speaker_models(app: FastAPI):
     """
     # Initialize DB at server boot
     memory.init_db()
+    quizzes.init_db()
 
     # Kick off background model warmup
     asyncio.create_task(asyncio.to_thread(speech_detection.warm_up))

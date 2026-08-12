@@ -23,8 +23,9 @@ You hold to talk → speak → Gemini Live API (audio in, audio out) → avatar 
 
 ---
 
-## Demo Video
+## Demo Videos
 
+- **0.2.0 Release** — Watch the full [LanguLearn Quiz System](https://youtu.be/9d4UrbZbwfU)
 - **0.1.0  Initial Release** — Watch the full [LanguLearn Tutorial](https://youtu.be/0YEskMeH4Gk)
 
 ---
@@ -68,11 +69,13 @@ LanguLearn is built around the Gemini **Live API** specifically because it's ful
 - **Mood-reactive expressions** — the avatar's face changes based on how the conversation is going, driven silently by the model
 - **Hands-free mode** — enroll your voice once and the tutor listens continuously, filtering out background noise and other speakers via on-device speaker verification (nothing about your voiceprint ever leaves your machine)
 - **Persistent memory** — every conversation gets a rolling summary, tracked vocabulary, and a recurring-mistakes log, so a reconnect (or a restart) doesn't mean starting from zero
+- **In-conversation quizzes** — the tutor can quiz you mid-conversation with multiple-choice or drag-and-drop questions, pulling from vocabulary you've actually gotten wrong before, without ever interrupting the conversation itself
 - **Multiple profiles, multiple languages** — each profile can run several conversations at once, each with its own voice, language pair, difficulty, and scenario
 - **Roleplay scenarios** — free conversation, ordering at a café, checking in at an airport, asking for directions, and more
 - **Three difficulty levels** — beginner, intermediate, advanced, adjustable per conversation
 - **Automatic model fallback** — if one Gemini model is unavailable, LanguLearn transparently retries on a second one
 - **Export your notes** — print or export a conversation's vocabulary/mistake log to Word
+- **Built-in update notifications** — a bell in the top bar lets you know when a new app version or a refreshed avatar/voice library is available, with a one-click update-and-relaunch
 - **100% self-hosted** — your own API key, your data stays on your machine, no cloud service in between (Except for Google, but you can opt-out via Account's Gemini Apps Activity page).
 
 ---
@@ -122,6 +125,19 @@ Prefer a browser tab over the desktop window? `langulearn` always opens as a nat
 3. Every conversation turn is transcribed by Gemini itself and saved locally. Periodically (and on disconnect), a background pass folds recent turns into a short rolling summary and pulls out notable vocabulary or recurring mistakes.
 4. When a session reconnects — hitting a session time limit, or reopening the app — LanguLearn tries to resume the exact same Gemini session first. If that's not possible, it starts a fresh one and quietly re-seeds it with the rolling summary, so the tutor doesn't act like it's meeting you for the first time.
 5. **Hands-free mode** enrolls a short voice sample per profile, then filters incoming audio through a speaker-verification pass before anything reaches Gemini — so it only responds to you, not a TV in the background or someone else talking.
+6. **Quizzes** can be triggered by the tutor at natural points in the conversation — multiple choice or drag-and-drop word bank, right in a side drawer without losing your place. Anything you get wrong feeds into a per-profile mistakes log, so those words are more likely to come back around in a future quiz.
+
+---
+
+## Limitations
+
+- **The displayed transcript of what you said is sometimes wrong, even when the tutor's reply isn't.** Gemini Live API produces the on-screen transcript of your speech through a separate speech-to-text pass from the one the model actually listens with — so the tutor often responds correctly to what you actually said while the text shown for it is garbled, off-topic, or barely related. This is a Gemini Live API characteristic, not something LanguLearn's own audio pipeline can control or fix.
+
+---
+
+## Staying up to date
+
+LanguLearn checks for updates automatically when it opens, and periodically while it's running - both a new app version and a refreshed avatar/voice/photo library. When one's available, a bell icon in the top bar shows it; click it, then the notification, for details and a one-click **Update & Relaunch**. You can also check manually any time from the profile menu, or from Settings → Updates.
 
 ---
 

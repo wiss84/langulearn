@@ -1,0 +1,332 @@
+/* --- Quiz drawer (learning page) ---
+   Opens from the left when the tutor calls start_quiz mid-conversation, or
+   automatically on reconnect if a quiz was left unfinished (quiz_resume -
+   see live_session.py). Unlike the avatar drawer (a flex sibling of #main),
+   this is a fixed-position overlay so it keeps working identically whether
+   the avatar drawer is closed, open, or fullscreen - a flex sibling would
+   get visually buried the moment avatar-fullscreen turns #avatarDrawer/
+   #main into their own fixed, full-width layers (see avatar_drawer.css).
+   z-index 55 sits above fullscreen's #main (40) and its maximize button/
+   view-select (50), so the quiz drawer always wins regardless of avatar
+   state. */
+
+#quizDrawer {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  overflow: hidden;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+  transition: width 0.25s ease;
+}
+#quizDrawer.open {
+  width: 420px;
+}
+/* fill_blank_dragdrop needs extra room for the word tray - quizDrawer.js
+   adds this class alongside .open when quiz_type calls for it. */
+#quizDrawer.open.wide {
+  width: 480px;
+}
+
+/* #main isn't offset in fullscreen mode (see the :not() qualifier below) -
+   fullscreen's own #main is already a fixed, centered overlay with no
+   concept of "make room on the left", and the accepted trade-off there is
+   the quiz drawer simply covering part of the avatar view, matching how
+   the avatar drawer itself already overlaps the transcript caption. */
+#body.quiz-drawer-open:not(.avatar-fullscreen) #main {
+  margin-left: 420px;
+  transition: margin-left 0.25s ease;
+}
+#body.quiz-drawer-open.quiz-drawer-wide:not(.avatar-fullscreen) #main {
+  margin-left: 480px;
+}
+
+/* --- Header: progress + (resumed quizzes only) skip --- */
+
+#quizDrawerHeader {
+  flex-shrink: 0;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.quiz-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quiz-progress-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quiz-progress-label {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Deliberately quiet/secondary - shown only on a resumed quiz (6.5), never
+   competing visually with the Next/Done button in the footer. */
+.quiz-skip-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+.quiz-skip-btn:hover { color: var(--text); }
+
+.quiz-progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.quiz-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.25s ease;
+}
+
+/* --- Body: one slide at a time --- */
+
+#quizDrawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.quiz-intro {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.quiz-slide {
+  animation: quiz-slide-in 0.2s ease;
+}
+@keyframes quiz-slide-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.quiz-prompt {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+/* --- Multiple choice: full-width selectable cards, same corner-radius/
+   border language as .bubble and the same selected-state pattern as
+   .difficulty-option (sidebar.css / settings.css). --- */
+
+.quiz-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.quiz-choice {
+  text-align: left;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.quiz-choice:hover { border-color: var(--accent); }
+.quiz-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quiz-choice.correct {
+  background: rgba(127, 169, 142, 0.16);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.quiz-choice.incorrect {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Fill-in-the-blank (drag-and-drop): word tray + dashed drop slots
+   inline in the passage. .quiz-blank-text is the shared sentence/passage
+   container - the only quiz type left that needs blanks-in-running-text
+   styling. --- */
+
+.quiz-blank-text {
+  font-size: 0.95rem;
+  line-height: 2.1;
+}
+
+.quiz-dragdrop-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.quiz-drag-chip {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.quiz-drag-chip:hover { border-color: var(--accent); }
+.quiz-drag-chip:active { cursor: grabbing; }
+.quiz-drag-chip.dragging {
+  transform: scale(1.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+.quiz-drag-chip.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.quiz-drag-chip.correct-reveal {
+  border-color: var(--ok);
+  background: rgba(127, 169, 142, 0.16);
+  color: var(--ok);
+}
+.quiz-drag-chip.placed { display: none; }
+
+.quiz-drop-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 32px;
+  padding: 6px 12px;
+  margin: 0 2px;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.quiz-drop-slot.drag-over { border-color: var(--accent); }
+.quiz-drop-slot.filled {
+  border-style: solid;
+  background: var(--panel-raised);
+  color: var(--text);
+}
+.quiz-drop-slot.correct {
+  border-color: var(--ok);
+  background: rgba(127, 169, 142, 0.16);
+  color: var(--ok);
+}
+.quiz-drop-slot.incorrect {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- Correct/incorrect feedback motion - brief and purposeful, same
+   restraint as #talkBtn's breathe/pulse-ring in main.css, and respecting
+   prefers-reduced-motion the same way that does. --- */
+
+.quiz-flash-correct { animation: quiz-pop 0.15s ease; }
+.quiz-flash-incorrect { animation: quiz-shake 0.2s ease; }
+
+@keyframes quiz-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes quiz-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quiz-slide, .quiz-flash-correct, .quiz-flash-incorrect {
+    animation: none;
+  }
+}
+
+/* --- Summary screen --- */
+
+.quiz-summary-score {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin: 8px 0 4px;
+}
+.quiz-summary-score.all-correct { color: var(--ok); }
+.quiz-summary-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+}
+.quiz-missed-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.quiz-missed-pill {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+
+/* --- Malformed-item fallback (quizRenderers.js / quizDragDrop.js) - shown
+   instead of a silently blank slide when the model's generated content is
+   incomplete. --- */
+.quiz-slide-broken .quiz-prompt {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* --- Footer: Next / Done, reusing .primary-btn (modals.css) rather than
+   inventing a new button style --- */
+
+#quizDrawerFooter {
+  flex-shrink: 0;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+}
+#quizDrawerFooter .primary-btn {
+  width: 100%;
+}
+#quizDrawerFooter .primary-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Applied to #talkBtn/#handsFreeBtn (main.css) by quizDrawer.js while a
+   quiz is open - pointer-events:none blocks mouse/touch entirely (the
+   audio.js-side quizActive checks are still needed on top of this for the
+   keyboard-activation case, which pointer-events doesn't cover). */
+#talkBtn.quiz-disabled, #handsFreeBtn.quiz-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}

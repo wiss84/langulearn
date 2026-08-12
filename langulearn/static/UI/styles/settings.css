@@ -74,6 +74,7 @@
 #settingsModal {
   position: relative;
   display: flex;
+  flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -84,11 +85,37 @@
   overflow: hidden;
 }
 
+#settingsBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+#settingsContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 #closeSettingsBtn {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  width: fit-content;
+}
+#closeSettingsBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 #settingsSidebar {
@@ -121,8 +148,11 @@
 }
 
 #settingsContent {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   padding: 24px 28px;
   overflow-y: auto;
 }
@@ -275,8 +305,24 @@
 }
 .danger-btn:hover { background: var(--accent); color: #fff; }
 
+/* --- Updates tab (settings.js populateUpdatesPane, reuses update.js's
+   loadUpdateStatus/describeUpdate/runUpdateAction) --- */
+
+.update-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.update-status-row:last-of-type { border-bottom: none; }
+
 @media (max-width: 560px) {
-  #settingsModal { flex-direction: column; height: 86vh; }
+  #settingsModal { height: 86vh; }
+  #settingsBody {
+    flex-direction: column;
+  }
   #settingsSidebar {
     flex: 0 0 auto;
     flex-direction: row;

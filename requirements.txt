@@ -19,6 +19,7 @@ torch
 librosa
 scipy
 rich
+markdown
 pywin32; sys_platform == "win32"
 
 # resemblyzer's own dependency list pulls in webrtcvad, which has no

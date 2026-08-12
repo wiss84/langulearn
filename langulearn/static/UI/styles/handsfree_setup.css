@@ -14,8 +14,8 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 40px 36px;
-  width: 520px;
-  max-width: 92vw;
+  width: 100%;
+  max-width: 720px;
   margin: 24px 0;
 }
 

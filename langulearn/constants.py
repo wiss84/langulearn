@@ -1,121 +1,20 @@
-"""Static configuration: prompt templates, tool declarations, voice/model
-option lists, defaults, and file paths shared across the app. No logic
-lives here - just data other modules import.
+"""Static configuration: voice/model option lists, defaults, and file
+paths shared across the app. No logic lives here - just data other
+modules import.
+
+Tutor prompt text and tool schemas do NOT live here anymore - see
+tutor_instructions.py (everything sent to the model as system_instruction)
+and tutor_tools.py (the set_mood/start_quiz tool schemas) instead. This
+file keeps DEFAULT_DIFFICULTY only, since routes/profile code needs a
+plain config default independent of any instruction text.
 """
 
 import shutil
 from pathlib import Path
 
-from google.genai import types
 from platformdirs import user_data_dir
 
-# Shared across every scenario (see the scenarios/ package) - a scenario
-# module only holds its persona/setting text; this correction mandate and
-# native-language fallback behavior apply identically regardless of setting,
-# so it's appended after the scenario template rather than duplicated in
-# each of the scenario files. {name}/{native_language}/{target_language}
-# filled in the same way as the scenario template itself.
-CORE_TUTOR_RULES = (
-    "\n\nYou are {tutor_name}, an {target_language} tutor. Always introduce yourself as {tutor_name} when meeting {name} for the first time.\n\n"
-    "CORE RULES YOU MUST FOLLOW:\n"
-    "Always correct mistakes in {target_language}. If {name} "
-    "makes ANY error (grammar, vocabulary, pronunciation, verb form, etc.), do "
-    "NOT praise the attempt. If unsure, treat it as incorrect and ask them to try "
-    "again.\n\n"
-    "For every mistake:\n"
-    "1. Say in {native_language} that it was incorrect.\n"
-    "2. Give the correct version.\n"
-    "3. Ask {name} to repeat it.\n"
-    "4. Keep correcting and asking until they say it correctly, or after 3 genuine "
-    "attempts. After the 3rd failed attempt, give the correct version again, say "
-    "it's okay to continue, and move on.\n"
-    "5. Never continue to a new topic before a correct repetition or the 3-attempt limit.\n\n"
-    "When {name} speaks in {native_language}, reply in {native_language}, introduce "
-    "the natural {target_language} equivalent, and briefly explain why it fits.\n\n"
-    "There is NO time limit on this session and no concept of a 'session for today' "
-    "being over. Never tell {name} the lesson/session is complete, finished, or that "
-    "you'll continue later - that framing is never true here and must never be said, "
-    "even if a summary of earlier progress mentions something like that (treat any "
-    "such mention in past context as a misphrasing to ignore, not as something to "
-    "repeat or defend). If it feels like a natural pause, ask what {name} wants to "
-    "practice next instead.\n\n"
-    "Keep replies short, interactive, and conversational, but never skip required corrections."
-    "Always Keep the conversation going."
-)
-
-# Also shared across every scenario, appended right after CORE_TUTOR_RULES.
-# Same {name}/{native_language}/{target_language} placeholders.
-DIFFICULTY_INSTRUCTIONS = {
-    "beginner": (
-        "\n\nDifficulty: beginner. Use simple, short sentences and common "
-        "vocabulary. Be patient - if {name} is stuck, switch to {native_language} "
-        "briefly to help them, then bring them back to {target_language}."
-    ),
-    "intermediate": (
-        "\n\nDifficulty: intermediate. Use natural conversational pace and "
-        "everyday vocabulary. Still correct every mistake per the rules above, "
-        "but expect {name} to keep up without much hand-holding."
-    ),
-    "advanced": (
-        "\n\nDifficulty: advanced. Speak at a natural native pace, using "
-        "idiomatic phrasing and varied vocabulary. Minimal simplification - "
-        "treat {name} like a capable speaker who is refining fluency."
-    ),
-}
 DEFAULT_DIFFICULTY = "intermediate"
-
-
-# Appended to the system instruction only when a conversation is starting a
-# fresh Live session (no valid resumption handle) and has a stored rolling
-# summary - re-seeds context Google's own session state can no longer carry.
-MEMORY_CONTEXT_TEMPLATE = (
-    "\n\nContext remembered from earlier conversations with {name} (use this "
-    "naturally to stay consistent - don't recite it verbatim or announce that "
-    "you're reading notes):\n{summary}"
-)
-
-# Appended to every system instruction, unconditionally - drives the
-# set_mood tool call handled in live_session.py. The tool's own JSON
-# schema (MOOD_TOOL) stays mechanical (valid values only); all the
-# "why/when to pick each one" guidance lives here instead.
-#
-# 'sleep' is deliberately NOT in the enum - it's a separate, deterministic
-# client-side idle-timeout state (see armIdleSleepTimer in audio.js), not
-# something Gemini should ever be able to trigger mid-conversation.
-MOOD_INSTRUCTION = (
-    "\n\nYou have a mandatory set_mood tool. Call it silently on EVERY reply; "
-    "never mention or narrate it.\n\n"
-    "Use exactly these moods:\n"
-    "- happy: student gets it right on the first try.\n"
-    "- sad: correcting any mistake.\n"
-    "- fear: 2nd or 3rd incorrect repetition.\n"
-    "- love: corrected phrase finally repeated correctly.\n"
-    "- neutral: new topic or any other case.\n\n"
-    "Always call set_mood once per response; use neutral if no other mood applies."
-)
-
-MOOD_TOOL = types.Tool(
-    function_declarations=[
-        types.FunctionDeclaration(
-            name="set_mood",
-            description=(
-                "Silently express the tutor's emotional reaction to the "
-                "current moment in the conversation, so the avatar's face "
-                "reflects it."
-            ),
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "mood": types.Schema(
-                        type="STRING",
-                        enum=["neutral", "happy", "sad", "fear", "love"],
-                    )
-                },
-                required=["mood"],
-            ),
-        )
-    ]
-)
 
 DEFAULT_VOICE = "Kore"
 DEFAULT_NATIVE_LANGUAGE = "English"
@@ -234,6 +133,7 @@ VOICE_OPTIONS = [
         "gender": "Female",
         "pitch": "Mid-to-low",
         "alias": "Isla",
+        "api_voice_name": "Zephyr",
     },
     {
         "name": "Despina",
@@ -304,6 +204,7 @@ VOICE_OPTIONS = [
         "gender": "Female",
         "pitch": "High",
         "alias": "Stella",
+        "api_voice_name": "Leda",
     },
     {
         "name": "Achird",
@@ -349,6 +250,17 @@ VOICE_OPTIONS = [
     },
 ]
 
+# Voice name used when calling the Google Live API. Most entries use their
+# own `name`, but a few aliases map to a different underlying Google voice
+# so the avatar's photo and local sample stay intact while the API still
+# receives a valid voice identifier.
+VOICE_NAME_TO_API = {v["name"]: v.get("api_voice_name") or v["name"] for v in VOICE_OPTIONS}
+
+
+def get_api_voice_name(voice_name: str) -> str:
+    return VOICE_NAME_TO_API.get(voice_name, voice_name)
+
+
 # Live API model choices. Rate limits are what's visible on the free tier as
 # of mid-2026 and can change - shown in the UI so the choice is informed.
 # Only the 2.5 native-audio generation exposes "affective dialog" (emotional
@@ -367,7 +279,7 @@ MODEL_OPTIONS = [
         "supports_affective_dialog": False,
     },
 ]
-DEFAULT_MODEL = MODEL_OPTIONS[0]["id"]
+DEFAULT_MODEL = MODEL_OPTIONS[1]["id"]
 
 # Single source of truth for the package's version - pyproject.toml reads
 # this dynamically at build time (see its own
@@ -378,7 +290,7 @@ DEFAULT_MODEL = MODEL_OPTIONS[0]["id"]
 # importing this directly, falling back to this constant only if the
 # package isn't recognized as installed at all (e.g. running straight from
 # a source checkout without ever having been pip-installed).
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 
 # OS-appropriate per-user data directory (profiles.json, memory.db,
 # voice_enrollment/) instead of storing user data inside the package tree
@@ -435,23 +347,38 @@ ASSETS_VERSION = "1"
 # built from this.
 ASSETS_RELEASE_TAG = "assets-v1"
 
-# voice_name/native_language/target_language/model_name and
-# resumption_handle/resumption_config are unused by current code (every
-# conversation is created explicitly via /avatar-select instead). Kept on
-# new profiles only for schema consistency with older data.
+# Hand-written release notes, one file per version - see
+# releases/vX.Y.Z_release.md. Bundled as package data (pyproject.toml)
+# so an installed copy always carries its own notes for every version up
+# to itself, with no network call needed to display them.
+RELEASES_DIR = Path(__file__).resolve().parent / "releases"
+
+# native_language and model_name aren't just schema leftovers - avatarSelect.js
+# reads them off the profile as the default native_language/model_name when
+# adding a new language to an EXISTING profile, and native_language is also
+# directly editable from the Settings modal's General tab (settings.js). Every
+# conversation still stores its own config independently once created (see
+# memory.py) - these two are only ever read as a starting point for a new one.
+#
+# voice_name/target_language/resumption_handle/resumption_config really are
+# unused: no code path reads them off a profile (every conversation picks its
+# own voice fresh via /avatar-select, and session resumption is tracked per
+# conversation - see memory.py/live_session.py - not per profile). Dropped
+# from this list entirely.
 PROFILE_EDITABLE_FIELDS = (
     "mic_device_id",
     "mic_label",
-    "voice_name",
     "voice_gender",
     "name",
     "native_language",
-    "target_language",
     "model_name",
     "active_conversation_id",
     "api_key",
     "mic_calibrations",
     "default_difficulty",
+    "langfuse_public_key",
+    "langfuse_secret_key",
+    "langfuse_base_url",
 )
 
 # Live API connect retries. Classification (is_transient_error) and

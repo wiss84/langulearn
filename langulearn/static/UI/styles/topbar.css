@@ -132,3 +132,163 @@
   transition: opacity 0.4s ease;
 }
 .session-status.visible { opacity: 1; }
+
+/* --- Update notification bell (base template - visible on every page,
+   since not every page loads settings.css/settings.js - see update.js).
+   Visual language deliberately mirrors .settings-dropdown/.settings-
+   dropdown-item (settings.css) - duplicated rather than shared since this
+   file is the only one guaranteed loaded everywhere. --- */
+
+#updateBellWrap {
+  position: relative;
+}
+
+@keyframes bell-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 64, 61, 0.55); }
+  50% { box-shadow: 0 0 0 4px rgba(193, 64, 61, 0); }
+}
+
+.update-badge-count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 1.5px solid var(--panel);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: bell-badge-pulse 2s ease-in-out infinite;
+}
+
+.update-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  z-index: 60;
+}
+.update-dropdown.visible { display: block; }
+
+.update-dropdown-message {
+  margin: 0 0 12px;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.update-dropdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.update-action-btn {
+  width: 100%;
+  text-align: center;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.update-action-btn:hover { background: var(--accent-hover); }
+.update-action-btn:disabled { opacity: 0.6; cursor: default; }
+
+.update-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.update-dropdown-item:hover { background: var(--panel-raised); color: var(--text); }
+
+.update-dropdown-status {
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-height: 1em;
+}
+
+/* --- Bell dropdown: notification LIST item (click opens the detail
+   modal below) - not the action itself, per the two-tier pattern this
+   replaced (bell dropdown = list, click a row = detail + actions). --- */
+
+.update-notification-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.4;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.update-notification-item:last-child { margin-bottom: 0; }
+.update-notification-item:hover { border-color: var(--accent); }
+
+#updateBellEmptyText { margin: 0; }
+
+/* --- Update detail modal (opened from the notification-item row above) -
+   same overlay chrome as #settingsOverlay/#notesModalOverlay
+   (settings.css/modals.css), duplicated here since this needs to be
+   reachable from every page, not just the learning page that loads those
+   files. --- */
+
+#updateDetailOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.6);
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+#updateDetailOverlay.visible { display: flex; }
+
+#updateDetailModal {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  width: 340px;
+  max-width: 90vw;
+}
+#updateDetailModal h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  margin: 0 0 12px;
+  padding-right: 20px;
+}
+#closeUpdateDetailBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}

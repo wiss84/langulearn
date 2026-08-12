@@ -42,3 +42,10 @@ var currentVoiceAlias = null;
 let ws = null;
 let reconnectTimer = null;
 let modelLabels = {}; // model id -> display label, fetched once in websocket.js
+
+// Set by quizDrawer.js while the quiz drawer is open; read by audio.js's
+// push-to-talk/hands-free gating (see the 6.4 no-mid-quiz-interruption
+// decision). Declared here rather than in quizDrawer.js itself so it's
+// available regardless of script load order, same reasoning as every
+// other shared flag on this page.
+let quizActive = false;

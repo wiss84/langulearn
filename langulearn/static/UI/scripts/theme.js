@@ -12,7 +12,7 @@ function updateThemeToggleIcon() {
   const btn = document.getElementById('themeToggleBtn');
   if (!btn) return;
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  btn.textContent = isLight ? '🌙' : '☀️';
+  btn.textContent = isLight ? '🌑' : '☀️';
   btn.title = isLight ? 'Switch to dark theme' : 'Switch to light theme';
 }
 

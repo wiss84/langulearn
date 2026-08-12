@@ -3,10 +3,11 @@
 live_session.py and routes_api.py actually use. Adding a new scenario means
 adding one file here (with TEMPLATE/LABEL/DESCRIPTION) and one line in
 _MODULES below - nothing else in this package needs to change. The
-correction-mandatory rules, difficulty phrasing, and mood tool instruction
-are NOT part of any scenario file - they're shared across every scenario
-and appended by build_config (live_session.py) after the scenario's own
-TEMPLATE, see constants.py's CORE_TUTOR_RULES / DIFFICULTY_INSTRUCTIONS.
+correction-mandatory rules, difficulty phrasing, and tool instructions are
+NOT part of any scenario file - they're shared across every scenario and
+appended by build_system_instruction (tutor_instructions.py) after the
+scenario's own TEMPLATE, see that file's CONVERSATIONAL_RULES /
+DIFFICULTY_INSTRUCTIONS.
 """
 
 from . import airport, cafe, directions, free_learning, letters_and_numbers, restaurant

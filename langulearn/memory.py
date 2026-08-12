@@ -38,9 +38,11 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Creates tables if they don't already exist. Safe to call on every
-    startup - no migration tooling needed beyond CREATE TABLE IF NOT EXISTS
-    for a single-user local app."""
+    """Creates tables if they don't already exist, and applies any pending
+    ALTER TABLE migrations for columns added since a database was first
+    created. Safe to call on every startup - CREATE TABLE IF NOT EXISTS is a
+    no-op past the first run, and each migration below no-ops (rather than
+    erroring) once its column already exists."""
     conn = _connect()
     try:
         conn.executescript(
@@ -81,7 +83,8 @@ def init_db() -> None:
               note TEXT,
               first_seen_ts INTEGER,
               last_seen_ts INTEGER,
-              occurrences INTEGER DEFAULT 1
+              occurrences INTEGER DEFAULT 1,
+              correct_streak INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS lesson_log (
@@ -92,6 +95,17 @@ def init_db() -> None:
             );
             """
         )
+        # ALTER TABLE ADD COLUMN for installs whose vocab_mistakes predates
+        # correct_streak - the CREATE TABLE above only takes effect for a
+        # brand new table, so existing databases need this run explicitly.
+        # SQLite raises OperationalError for a column that already exists;
+        # that's the expected/common case on every later startup, so it's
+        # swallowed, and anything else is re-raised.
+        try:
+            conn.execute("ALTER TABLE vocab_mistakes ADD COLUMN correct_streak INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
         conn.commit()
     finally:
         conn.close()
@@ -178,6 +192,8 @@ def update_conversation(conversation_id: str, name: str | None = None, config: d
 
 
 def delete_conversation(conversation_id: str) -> bool:
+    from . import quizzes  # lazy import - quizzes.py imports from this module at load time
+
     conn = _connect()
     try:
         cur = conn.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
@@ -186,9 +202,11 @@ def delete_conversation(conversation_id: str) -> bool:
         conn.execute("DELETE FROM vocab_mistakes WHERE conversation_id=?", (conversation_id,))
         conn.execute("DELETE FROM lesson_log WHERE conversation_id=?", (conversation_id,))
         conn.commit()
-        return cur.rowcount > 0
+        deleted = cur.rowcount > 0
     finally:
         conn.close()
+    quizzes.delete_conversation_quizzes(conversation_id)
+    return deleted
 
 
 def set_resumption(conversation_id: str, handle: str | None, config_identity: dict | None) -> None:
@@ -325,11 +343,75 @@ def get_vocab_mistakes(conversation_id: str) -> list[dict]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT term, note, first_seen_ts, last_seen_ts, occurrences FROM vocab_mistakes "
+            "SELECT term, note, first_seen_ts, last_seen_ts, occurrences, correct_streak FROM vocab_mistakes "
             "WHERE conversation_id=? ORDER BY last_seen_ts DESC",
             (conversation_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def record_term_review(conversation_id: str, term: str, correct: bool) -> None:
+    """Records the outcome of one quiz answer for a vocabulary term, using
+    the same vocab_mistakes table upsert_vocab_mistake writes to, so a
+    term's conversation mistakes and quiz mistakes count toward the same
+    row rather than two disconnected trackers.
+
+    A wrong answer behaves like upsert_vocab_mistake (bumps occurrences,
+    refreshes last_seen_ts) and additionally resets correct_streak to 0.
+    A correct answer only has an effect if the term already has a row - a
+    term the student has only ever gotten right never needs tracking here
+    - and then it just extends correct_streak without touching occurrences.
+    """
+    if not term or not term.strip():
+        return
+    term = term.strip()
+    ts = int(time.time())
+    conn = _connect()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM vocab_mistakes WHERE conversation_id=? AND term=? COLLATE NOCASE",
+            (conversation_id, term),
+        ).fetchone()
+        if correct:
+            if existing:
+                conn.execute(
+                    "UPDATE vocab_mistakes SET correct_streak=correct_streak+1, last_seen_ts=? WHERE id=?",
+                    (ts, existing["id"]),
+                )
+                conn.commit()
+            return
+        if existing:
+            conn.execute(
+                "UPDATE vocab_mistakes SET last_seen_ts=?, occurrences=occurrences+1, correct_streak=0 WHERE id=?",
+                (ts, existing["id"]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO vocab_mistakes "
+                "(conversation_id, term, note, first_seen_ts, last_seen_ts, occurrences, correct_streak) "
+                "VALUES (?,?,?,?,?,1,0)",
+                (conversation_id, term, "missed in quiz", ts, ts),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_review_candidates(conversation_id: str, limit: int = 5) -> list[str]:
+    """Terms worth quizzing again: missed at least once and not yet answered
+    correctly twice in a row since, most-missed and least-recently-seen
+    first. Two correct answers in a row for a term retires it from this
+    list."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT term FROM vocab_mistakes WHERE conversation_id=? AND correct_streak<2 "
+            "ORDER BY occurrences DESC, last_seen_ts ASC LIMIT ?",
+            (conversation_id, limit),
+        ).fetchall()
+        return [r["term"] for r in rows]
     finally:
         conn.close()
 
@@ -358,3 +440,134 @@ def get_lesson_log(conversation_id: str) -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Profile export / import (backup)
+# ---------------------------------------------------------------------------
+
+
+def export_profile_conversations(profile_id: str) -> list[dict]:
+    """Every conversation belonging to this profile, each with its turns,
+    summary, vocab_mistakes, lesson_log, and quiz sessions nested under it -
+    everything needed to reconstruct them elsewhere via
+    import_profile_conversations. Doesn't touch profiles.json or
+    voice_enrollment - those are exported separately (see
+    profiles_store.py / speech_detection/enrollment.py).
+
+    Row ids that are only ever used for internal ordering/lookup
+    (turns.id, quiz_items.id - both AUTOINCREMENT) are deliberately not
+    included; conversations.id and quiz_sessions.id (both stable UUIDs)
+    are, since import uses them as the actual identity to replace.
+    """
+    from . import quizzes  # lazy import - quizzes.py imports from this module at load time
+
+    conn = _connect()
+    try:
+        conv_rows = conn.execute("SELECT * FROM conversations WHERE profile_id=?", (profile_id,)).fetchall()
+        conversations = []
+        for row in conv_rows:
+            conv = _row_to_conv(row)
+            cid = conv["id"]
+            conv["turns"] = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT role, text, ts FROM turns WHERE conversation_id=? ORDER BY seq ASC", (cid,)
+                ).fetchall()
+            ]
+            summary_row = conn.execute("SELECT summary, based_on_turn FROM summaries WHERE conversation_id=?", (cid,)).fetchone()
+            conv["summary"] = dict(summary_row) if summary_row else None
+            conv["vocab_mistakes"] = [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT term, note, first_seen_ts, last_seen_ts, occurrences, correct_streak "
+                    "FROM vocab_mistakes WHERE conversation_id=?",
+                    (cid,),
+                ).fetchall()
+            ]
+            conv["lesson_log"] = [
+                dict(r) for r in conn.execute("SELECT ts, summary FROM lesson_log WHERE conversation_id=?", (cid,)).fetchall()
+            ]
+            conv["quiz_sessions"] = quizzes.export_conversation_quizzes(cid)
+            conversations.append(conv)
+        return conversations
+    finally:
+        conn.close()
+
+
+def import_profile_conversations(profile_id: str, conversations: list[dict]) -> None:
+    """Reverse of export_profile_conversations. Each conversation is fully
+    replaced (its existing turns/summary/vocab_mistakes/lesson_log/quiz
+    rows deleted first, then the imported set inserted fresh) rather than
+    merged, so importing the same backup twice - or importing over a
+    conversation that already exists locally under this id - never
+    duplicates rows. profile_id comes from the argument, not trusted from
+    the payload, so the same export could be imported under a different
+    profile id if that's ever needed.
+
+    resumption_handle/resumption_config are intentionally dropped on
+    import - a Live API session handle from wherever the backup was made
+    is never valid to resume elsewhere.
+    """
+    from . import quizzes  # lazy import - quizzes.py imports from this module at load time
+
+    conn = _connect()
+    try:
+        for conv in conversations:
+            cid = conv["id"]
+            conn.execute("DELETE FROM turns WHERE conversation_id=?", (cid,))
+            conn.execute("DELETE FROM summaries WHERE conversation_id=?", (cid,))
+            conn.execute("DELETE FROM vocab_mistakes WHERE conversation_id=?", (cid,))
+            conn.execute("DELETE FROM lesson_log WHERE conversation_id=?", (cid,))
+
+            conn.execute(
+                "INSERT OR REPLACE INTO conversations "
+                "(id, profile_id, name, config_json, resumption_handle, resumption_config_json, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    cid,
+                    profile_id,
+                    conv["name"],
+                    json.dumps(conv["config"]),
+                    None,
+                    None,
+                    conv["created_at"],
+                    conv["updated_at"],
+                ),
+            )
+            for seq, t in enumerate(conv.get("turns", []), start=1):
+                conn.execute(
+                    "INSERT INTO turns (conversation_id, seq, role, text, ts) VALUES (?,?,?,?,?)",
+                    (cid, seq, t["role"], t["text"], t["ts"]),
+                )
+            if conv.get("summary"):
+                conn.execute(
+                    "INSERT INTO summaries (conversation_id, summary, based_on_turn, updated_at) VALUES (?,?,?,?)",
+                    (cid, conv["summary"]["summary"], conv["summary"]["based_on_turn"], _now_iso()),
+                )
+            for v in conv.get("vocab_mistakes", []):
+                conn.execute(
+                    "INSERT INTO vocab_mistakes "
+                    "(conversation_id, term, note, first_seen_ts, last_seen_ts, occurrences, correct_streak) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (
+                        cid,
+                        v["term"],
+                        v["note"],
+                        v["first_seen_ts"],
+                        v["last_seen_ts"],
+                        v["occurrences"],
+                        v["correct_streak"],
+                    ),
+                )
+            for lg in conv.get("lesson_log", []):
+                conn.execute(
+                    "INSERT INTO lesson_log (conversation_id, ts, summary) VALUES (?,?,?)",
+                    (cid, lg["ts"], lg["summary"]),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+    for conv in conversations:
+        quizzes.import_conversation_quizzes(conv["id"], conv.get("quiz_sessions", []))

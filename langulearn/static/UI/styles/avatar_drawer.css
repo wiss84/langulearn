@@ -63,12 +63,15 @@
 }
 
 /* Same reasoning as #avatarMaximizeBtn above (true sibling, fixed
-   position, high z-index) - only relevant/visible when maximized, so
-   positioned top-right below the top bar rather than bottom-right. */
+   position, high z-index) - only relevant/visible when maximized.
+   Positioned top-LEFT rather than top-right: the profile/settings button
+   (#settingsMenuWrap, settings.css) and its dropdown live top-right in
+   the topbar, and this control's dropdown-open state was overlapping it
+   there. */
 #avatarViewSelect {
   position: fixed;
   top: 66px;
-  right: 20px;
+  left: 20px;
   z-index: 50;
   display: none;
   background: rgba(20, 24, 33, 0.55);
