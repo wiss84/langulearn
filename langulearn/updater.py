@@ -125,22 +125,46 @@ def relaunch_app() -> None:
     process that's about to disappear, which on some platforms tears the
     child down too.
 
+    On Windows, DETACHED_PROCESS means the new process gets NO console at
+    all - if anything during its startup touches stdout/stderr before it's
+    fully running (rich's Console() probes the terminal, click does too,
+    any stray print()), that raises OSError: [WinError 6] The handle is
+    invalid and the process dies before uvicorn ever binds the port -
+    invisibly, since there's no console to show that error on (see
+    design_plans/issues.md - this was reported as "can't reach this page"
+    after Settings > Updates > Update & Relaunch, with nothing in any
+    terminal to explain it). Redirecting stdout/stderr to a real log file
+    gives every stream a valid handle to write to, fixing that crash, and
+    leaves a trail to diagnose anything that still goes wrong on startup.
+
     Does NOT close this process's own window or exit this process - see
     close_this_window() below, called separately by the /api/restart-app
     handler right after this.
     """
     creationflags = 0
     start_new_session = False
+    log_file = None
     if sys.platform == "win32":
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = open(DATA_DIR / "relaunch.log", "a", encoding="utf-8")
     else:
         start_new_session = True
-    subprocess.Popen(
-        [sys.executable, "-m", "langulearn"],
-        creationflags=creationflags,
-        start_new_session=start_new_session,
-        close_fds=True,
-    )
+    try:
+        subprocess.Popen(
+            [sys.executable, "-m", "langulearn"],
+            creationflags=creationflags,
+            start_new_session=start_new_session,
+            stdout=log_file,
+            stderr=log_file,
+            close_fds=True,
+        )
+    finally:
+        # The child gets its own duplicated handle when passed directly to
+        # Popen - closing the parent's copy here doesn't affect the child,
+        # it just stops this (about to exit anyway) process holding it open.
+        if log_file is not None:
+            log_file.close()
 
 
 def close_this_window() -> bool:
