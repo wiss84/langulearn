@@ -314,6 +314,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    # Defense in depth alongside relaunch_app()'s PYTHONUTF8=1 (updater.py) -
+    # protects direct/foreground invocations too, not just the relaunch-
+    # after-update path. errors="replace" rather than the default "strict":
+    # worst case on some exotic stream is a literal "?" in place of a
+    # character like ✓/→, never a crash - reconfigure() itself can fail on
+    # a stream that doesn't support it (rare, but not worth risking a
+    # crash-on-startup over), hence the try/except.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     parser = build_parser()
     args = parser.parse_args()
     try:

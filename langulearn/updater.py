@@ -8,6 +8,7 @@ of two copies drifting apart.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -137,6 +138,15 @@ def relaunch_app() -> None:
     gives every stream a valid handle to write to, fixing that crash, and
     leaves a trail to diagnose anything that still goes wrong on startup.
 
+    That log file is also why PYTHONUTF8=1 is forced below: a Python
+    stdout backed by a redirected file (rather than a real console) still
+    defaults to the OS locale's codepage on Windows (cp1252, typically),
+    not UTF-8 - and rich's own ✓/→ characters (cli.py's setup/update-notice
+    output) immediately raise UnicodeEncodeError against that codepage,
+    reproducing the exact same invisible-crash symptom one layer further
+    in. PEP 540 UTF-8 mode makes the child's text I/O UTF-8 unconditionally
+    regardless of locale, independent of what stream it's writing to.
+
     Does NOT close this process's own window or exit this process - see
     close_this_window() below, called separately by the /api/restart-app
     handler right after this.
@@ -144,6 +154,7 @@ def relaunch_app() -> None:
     creationflags = 0
     start_new_session = False
     log_file = None
+    env = dict(os.environ, PYTHONUTF8="1")
     if sys.platform == "win32":
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -157,6 +168,7 @@ def relaunch_app() -> None:
             start_new_session=start_new_session,
             stdout=log_file,
             stderr=log_file,
+            env=env,
             close_fds=True,
         )
     finally:
