@@ -290,7 +290,7 @@ DEFAULT_MODEL = MODEL_OPTIONS[1]["id"]
 # importing this directly, falling back to this constant only if the
 # package isn't recognized as installed at all (e.g. running straight fromgit
 # a source checkout without ever having been pip-installed).
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 
 # OS-appropriate per-user data directory (profiles.json, memory.db,
 # voice_enrollment/) instead of storing user data inside the package tree

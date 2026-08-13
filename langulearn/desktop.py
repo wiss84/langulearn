@@ -18,6 +18,7 @@ Notes:
   look into rather than a sign something else is broken.
 """
 
+import socket
 import sys
 import threading
 import time
@@ -36,6 +37,39 @@ _ICON_NAME = "LanguLearn.icns" if sys.platform == "darwin" else "LanguLearn.ico"
 ICON_PATH = Path(__file__).parent / "static" / _ICON_NAME
 
 
+def _wait_for_port_free(host: str, port: int, timeout: float = 10.0) -> bool:
+    """Polls whether (host, port) can actually be bound, returning True as
+    soon as it can (immediately, on a normal launch where nothing else is
+    using it). Exists specifically for the Update & Relaunch race: the new
+    process can start trying to bind before the OLD process - still mid-
+    shutdown via close_this_window() - has released the port (see
+    design_plans/issues.md; relaunch.log showed "WinError 10048: only one
+    usage of each socket address..."). uvicorn itself swallows a bind
+    failure silently - logs it, then returns normally rather than raising
+    (see Server.startup() catching the OSError) - so run() below had no
+    way to notice anything went wrong and opened the window regardless.
+    Waiting for the port to be genuinely free before ever starting uvicorn
+    sidesteps that entirely, rather than trying to detect/recover from a
+    failure uvicorn already hid.
+
+    Deliberately does NOT set SO_REUSEADDR on the probe socket - on
+    Windows that can let a bind "succeed" while another socket is still
+    actively listening on the same address, which is exactly the false
+    positive this needs to avoid.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind((host, port))
+                return True
+            except OSError:
+                pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.3)
+
+
 def run(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Starts the FastAPI server in a background thread, then opens the
     desktop window pointed at it. Blocks until the window is closed
@@ -44,6 +78,9 @@ def run(host: str = "127.0.0.1", port: int = 8000) -> None:
     already completed.
     """
     webview.settings["ALLOW_DOWNLOADS"] = True  # off by default in pywebview - without this, downloads silently do nothing
+
+    if not _wait_for_port_free(host, port):
+        print(f"[desktop] {host}:{port} still in use after waiting - starting anyway, uvicorn will report the real error")
 
     def start_server():
         uvicorn.run(app, host=host, port=port, log_level="info")
