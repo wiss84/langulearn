@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -119,6 +120,24 @@ def run_pip_upgrade() -> tuple[bool, str]:
         return False, str(e)
 
 
+def _free_port() -> int:
+    """Asks the OS for an unused TCP port (bind to port 0, read back what
+    it actually chose, release it immediately) rather than assuming one is
+    free. Exists specifically for relaunch_app() below - see its docstring
+    for why reusing the outgoing process's own port is the wrong thing to
+    do here. A tiny residual race exists between this releasing the port
+    and the relaunched process's own bind moments later (same as
+    desktop.py's _wait_for_port_free, which is kept as a backstop for
+    exactly that and for the normal, non-relaunch launch path), but
+    picking a fresh port instead of deliberately colliding with one the
+    outgoing process might still be holding removes the actual race this
+    was hitting, rather than just narrowing its window.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def relaunch_app() -> None:
     """Starts a fresh, fully detached `langulearn` process. Detached (own
     process group/session on POSIX, DETACHED_PROCESS on Windows) so the
@@ -147,6 +166,24 @@ def relaunch_app() -> None:
     in. PEP 540 UTF-8 mode makes the child's text I/O UTF-8 unconditionally
     regardless of locale, independent of what stream it's writing to.
 
+    Also why this passes an explicit --port instead of letting the new
+    process default to 8000: this function runs and spawns the new process
+    WHILE the outgoing process (and its own server, still bound to 8000)
+    is still fully alive - close_this_window() below, which is what
+    actually lets the outgoing process exit, is only called by
+    /api/restart-app AFTER this returns, and even a well-ordered close is
+    not instant. The new process trying to bind 8000 immediately raced the
+    outgoing one giving it up - uvicorn itself
+    swallows that bind failure silently (logs it, then returns normally
+    rather than raising) and desktop.py's window still opened regardless,
+    pointed at a port nothing was listening on (see design_plans/
+    issues.md - relaunch.log showed "WinError 10048: only one usage of
+    each socket address..."). A fresh OS-assigned port sidesteps the race
+    entirely instead of narrowing it - nothing else in the app assumes
+    port 8000 specifically, since the window URL and every frontend
+    fetch() call are relative to whatever origin actually got used (see
+    desktop.py/update.js).
+
     Does NOT close this process's own window or exit this process - see
     close_this_window() below, called separately by the /api/restart-app
     handler right after this.
@@ -163,7 +200,7 @@ def relaunch_app() -> None:
         start_new_session = True
     try:
         subprocess.Popen(
-            [sys.executable, "-m", "langulearn"],
+            [sys.executable, "-m", "langulearn", "--port", str(_free_port())],
             creationflags=creationflags,
             start_new_session=start_new_session,
             stdout=log_file,
