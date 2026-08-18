@@ -37,6 +37,11 @@ async def serve_landing_page(request: Request):
     return templates.TemplateResponse(request, "pages/landing.html")
 
 
+@router.get("/get-started")
+async def serve_get_started_page(request: Request):
+    return templates.TemplateResponse(request, "pages/get_started.html")
+
+
 @router.get("/avatar-select")
 async def serve_avatar_select_page(request: Request):
     return templates.TemplateResponse(request, "pages/avatar_select.html")
@@ -50,6 +55,11 @@ async def serve_profiles_page(request: Request):
 @router.get("/handsfree-setup")
 async def serve_handsfree_setup_page(request: Request):
     return templates.TemplateResponse(request, "pages/handsfree_setup.html")
+
+
+@router.get("/quiz-mode")
+async def serve_quiz_mode_page(request: Request):
+    return templates.TemplateResponse(request, "pages/quiz_mode.html")
 
 
 @router.get("/whats-new")

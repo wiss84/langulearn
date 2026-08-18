@@ -7,6 +7,7 @@
         <button class="settings-cat-btn" type="button" data-cat="account">Account</button>
         <button class="settings-cat-btn" type="button" data-cat="voice">Voice &amp; hands-free</button>
         <button class="settings-cat-btn" type="button" data-cat="learning">Learning</button>
+        <button class="settings-cat-btn" type="button" data-cat="stats">Stats</button>
         <button class="settings-cat-btn" type="button" data-cat="data">Data controls</button>
         <button class="settings-cat-btn" type="button" data-cat="updates">Updates</button>
         <button class="settings-cat-btn" type="button" data-cat="about">About</button>
@@ -26,7 +27,17 @@
         <p class="field-hint">Only affects new languages you add from here on - your existing conversations keep the native language they were created with.</p>
 
         <label class="field-label">Theme</label>
-        <button id="settingsThemeBtn" class="pill-btn" type="button">Toggle light / dark</button>
+        <div id="settingsThemeToggle" class="theme-toggle">
+          <button type="button" class="theme-option" data-theme="system" title="Match system">
+            <span aria-hidden="true">🖥️</span> System
+          </button>
+          <button type="button" class="theme-option" data-theme="light" title="Light">
+            <span aria-hidden="true">☀️</span> Light
+          </button>
+          <button type="button" class="theme-option" data-theme="dark" title="Dark">
+            <span aria-hidden="true">🌙</span> Dark
+          </button>
+        </div>
 
         <div class="settings-save-row">
           <p class="field-hint" id="settingsGeneralStatus"></p>
@@ -100,6 +111,32 @@
         <p class="field-hint" id="settingsDifficultyHint">Sets the default for new languages, and updates your current conversation too - it takes effect the next time this conversation reconnects, not instantly mid-sentence.</p>
       </div>
 
+      <div class="settings-pane" data-pane="stats" hidden>
+        <h3>Stats</h3>
+
+        <div id="statsSummaryRow" class="stats-summary-row">
+          <div class="stats-summary-item">
+            <span id="statsStreakValue" class="stats-summary-value">-</span>
+            <span class="stats-summary-label">Day streak</span>
+          </div>
+          <div class="stats-summary-item">
+            <span id="statsHoursValue" class="stats-summary-value">-</span>
+            <span class="stats-summary-label">Hours studied</span>
+          </div>
+          <div class="stats-summary-item">
+            <span id="statsLanguagesValue" class="stats-summary-value">-</span>
+            <span class="stats-summary-label">Languages</span>
+          </div>
+        </div>
+
+        <p id="statsReviewReminder" class="field-hint" hidden></p>
+
+        <label class="field-label" style="margin-top:16px;">By language</label>
+        <div id="statsLanguageList" class="stats-language-list">
+          <p class="field-hint">Loading...</p>
+        </div>
+      </div>
+
       <div class="settings-pane" data-pane="data" hidden>
         <h3>Data controls</h3>
 
@@ -109,6 +146,32 @@
 
         <label class="field-label" style="margin-top:16px;">Export learnt notes</label>
         <div id="settingsExportList" class="export-list"></div>
+
+        <hr class="modal-divider" />
+
+        <label class="field-label">Backup</label>
+        <p class="field-hint">A full backup includes every language/conversation and voice enrollment for this profile - not just notes.</p>
+        <div class="field-row">
+          <button id="settingsExportProfileBtn" class="pill-btn" type="button" style="flex:1;">Export profile backup</button>
+          <button id="settingsImportProfileBtn" class="pill-btn" type="button" style="flex:1;">Import backup</button>
+          <input id="settingsImportProfileFile" type="file" accept=".zip" hidden />
+        </div>
+        <p class="field-hint" id="settingsBackupStatus"></p>
+
+        <label class="field-label" style="margin-top:14px; display:flex; align-items:center; gap:8px;">
+          <input id="settingsAutoBackupToggle" type="checkbox" style="width:auto; margin:0;" />
+          Automatic backup
+        </label>
+        <div class="field-row" style="margin-top:8px;">
+          <select id="settingsAutoBackupInterval">
+            <option value="1">Every day</option>
+            <option value="3">Every 3 days</option>
+            <option value="7">Weekly</option>
+            <option value="30">Monthly</option>
+          </select>
+          <button id="settingsOpenBackupsFolderBtn" class="pill-btn" type="button">Open backups folder</button>
+        </div>
+        <p class="field-hint">Checked once per app launch, not on a precise schedule - if the app isn't opened exactly on time, a backup can run up to one extra interval late. Written locally under LanguLearn's data folder, not uploaded anywhere.</p>
 
         <hr class="modal-divider" />
 
@@ -129,6 +192,10 @@
         <div class="update-status-row">
           <span class="field-label" style="margin:0;">Avatars / voices / photos</span>
           <span id="settingsAssetsVersionText" class="field-hint" style="margin:0;">Checking...</span>
+        </div>
+        <div class="update-status-row">
+          <span class="field-label" style="margin:0;">Landing-page assets</span>
+          <span id="settingsMarketingVersionText" class="field-hint" style="margin:0;">Checking...</span>
         </div>
 
         <div class="field-row" style="margin-top:16px;">
@@ -159,4 +226,5 @@
     </div>
 
   </div>
+</div>
 </div>

@@ -87,10 +87,9 @@ async def _disable_static_caching(request: Request, call_next):
 #
 # Two different physical locations back the same URL space the frontend
 # expects:
-#  - /avatar, /voices, /photos come from ASSETS_DIR (see constants.py) -
-#    downloaded by `langulearn setup`/first run (cli.py), not bundled in
-#    the pip package. check_dir=False lets the app still start even before
-#    that download has happened - those routes just 404 until it has.
+#  - /avatar, /voices, /photos, /marketing come from ASSETS_DIR (see
+#    constants.py) - downloaded by `langulearn setup`/first run (cli.py),
+#    not bundled in the pip package.
 #  - Everything else (UI/styles, UI/scripts, vendor/, pcm-processor.js,
 #    the platform icons) is bundled with the package under static/,
 #    resolved relative to this file rather than the process's current
@@ -107,6 +106,24 @@ async def favicon():
     return FileResponse(STATIC_DIR / "LanguLearn.ico")
 
 
+# check_dir=False (below) only skips StaticFiles' directory check at
+# MOUNT time, letting the app start even before `langulearn setup` has
+# downloaded anything - it does NOT skip that same check on every
+# individual REQUEST afterward. Starlette's check_config() runs on every
+# request regardless, and raises a full RuntimeError (500, with a giant
+# traceback logged per request) if the directory is still missing then -
+# it does NOT degrade to a quiet 404 the way a missing individual FILE
+# inside an already-existing directory does. A person opening the app
+# before setup has ever downloaded anything (or, as happened here, before
+# a brand new asset kind's directory has ever been created) would see
+# that traceback spammed once per asset request - 60+ on a single landing-
+# page load, between the tutor-card marquee and the two hero/dance videos.
+# Pre-creating each directory (even empty) below means check_config()
+# always finds something to stat, so a still-missing individual file just
+# 404s normally and quietly instead.
+for _kind in ("avatar", "voices", "photos", "marketing"):
+    (ASSETS_DIR / _kind).mkdir(parents=True, exist_ok=True)
+
 app.mount(
     "/avatar",
     StaticFiles(directory=str(ASSETS_DIR / "avatar"), check_dir=False),
@@ -121,6 +138,11 @@ app.mount(
     "/photos",
     StaticFiles(directory=str(ASSETS_DIR / "photos"), check_dir=False),
     name="photo_assets",
+)
+app.mount(
+    "/marketing",
+    StaticFiles(directory=str(ASSETS_DIR / "marketing"), check_dir=False),
+    name="marketing_assets",
 )
 avatar_test_dir = STATIC_DIR / "UI" / "avatar_test"
 if avatar_test_dir.exists():

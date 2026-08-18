@@ -2,6 +2,14 @@
 // /profiles). Shows: microphone (profile-level device choice), and each
 // language/conversation as a row with activate/notes/rename/delete
 // actions, plus a way to add a new one via avatar-select.
+//
+// openProfileDetail forces a reflow right after toggling .visible - a
+// display:none -> flex change on a position:fixed overlay was observed
+// not actually painting until some UNRELATED event forced the browser to
+// recomposite the page (e.g. opening a second modal on top "unstuck" it) -
+// a paint-timing glitch, not a CSS logic bug (every computed style was
+// already correct beforehand). See the same fix applied for the same
+// reason in notes.js/settings.js's equivalent open functions.
 
 const profileDetailOverlay = document.getElementById('profileDetailOverlay');
 const profileDetailName = document.getElementById('profileDetailName');
@@ -303,6 +311,16 @@ function renderLanguageRows(profile, conversations) {
       openNotesModal(profile.id, conv.id, label);
     });
 
+    const quizModeBtn = document.createElement('button');
+    quizModeBtn.className = 'conv-quiz-btn';
+    quizModeBtn.type = 'button';
+    quizModeBtn.title = 'Test yourself on this language';
+    quizModeBtn.textContent = '🧩';
+    quizModeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.location.href = `/quiz-mode?profile_id=${encodeURIComponent(profile.id)}&conversation_id=${encodeURIComponent(conv.id)}`;
+    });
+
     const renameBtn = document.createElement('button');
     renameBtn.className = 'conv-rename-btn';
     renameBtn.type = 'button';
@@ -332,6 +350,7 @@ function renderLanguageRows(profile, conversations) {
 
     row.appendChild(btn);
     row.appendChild(notesBtn);
+    row.appendChild(quizModeBtn);
     row.appendChild(renameBtn);
     row.appendChild(delBtn);
     profileDetailLanguages.appendChild(row);
@@ -349,6 +368,12 @@ async function openProfileDetail(profile) {
   currentDetailProfile = profile;
   profileDetailName.textContent = profile.name;
   profileDetailOverlay.classList.add('visible');
+  // Forces an immediate repaint - see this file's header comment. Without
+  // this, the browser can leave the previous (display:none) frame on
+  // screen until something else forces a recomposite, even though the DOM/
+  // computed styles are already correct - reading a layout property
+  // synchronously right here forces it to actually happen now.
+  void profileDetailOverlay.offsetHeight;
 
   await loadMicsForProfile(profile);
   await refreshLanguageRows(profile);

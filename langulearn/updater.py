@@ -9,7 +9,6 @@ of two copies drifting apart.
 from __future__ import annotations
 
 import os
-import shutil
 import socket
 import subprocess
 import sys
@@ -17,10 +16,20 @@ import tempfile
 import urllib.error
 import urllib.request
 import zipfile
+from datetime import datetime
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-from .constants import APP_VERSION, ASSETS_DIR, ASSETS_RELEASE_TAG, ASSETS_VERSION, DATA_DIR, RELEASES_DIR
+from .constants import (
+    APP_VERSION,
+    ASSETS_DIR,
+    ASSETS_RELEASE_TAG,
+    ASSETS_VERSION,
+    DATA_DIR,
+    MARKETING_ASSETS_RELEASE_TAG,
+    MARKETING_ASSETS_VERSION,
+    RELEASES_DIR,
+)
 
 PYPI_PROJECT = "langulearn"
 GITHUB_REPO = "wiss84/langulearn"
@@ -33,6 +42,14 @@ ASSET_FILES = {
     "avatar": "avatars.zip",
     "voices": "voices.zip",
     "photos": "photos.zip",
+}
+
+# Landing-page video/gif assets - same one-zip-per-kind, flat-extraction
+# convention as ASSET_FILES above (see
+# design_plans/workflow/RELEASING_MARKETING_ASSETS.md), but downloaded and
+# versioned independently (see MARKETING_ASSETS_VERSION in constants.py).
+MARKETING_ASSET_FILES = {
+    "marketing": "marketing.zip",
 }
 
 
@@ -196,6 +213,16 @@ def relaunch_app() -> None:
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         log_file = open(DATA_DIR / "relaunch.log", "a", encoding="utf-8")
+        # relaunch.log is append-only (a relaunch failing is exactly the
+        # case where truncating it would be most likely to destroy the one
+        # copy of evidence explaining why) - a dated separator line per
+        # attempt is what actually makes an ever-growing file readable,
+        # since uvicorn/rich's own log lines don't carry timestamps.
+        # Flushed explicitly, and written before Popen() below rather than
+        # after, so it can't land interleaved with or after the child's own
+        # output to the same file.
+        log_file.write(f"\n=== relaunch attempt: {datetime.now().isoformat(timespec='seconds')} ===\n")
+        log_file.flush()
     else:
         start_new_session = True
     try:
@@ -245,17 +272,30 @@ def close_this_window() -> bool:
 # Assets (GitHub Release)
 # ---------------------------------------------------------------------------
 
-
-def _asset_url(filename: str) -> str:
-    return f"https://github.com/{GITHUB_REPO}/releases/download/{ASSETS_RELEASE_TAG}/{filename}"
+# Generic across both asset groups (core avatar/voice/photo AND landing-
+# page marketing) rather than two near-identical copies of the same
+# download/extract/progress-bar logic - the two groups only ever differ in
+# WHICH files/tag/version/marker/label they use, never in HOW the download
+# itself works, so that's the only thing parametrized here.
 
 
 def _assets_marker_path() -> Path:
     return ASSETS_DIR / ".assets_version"
 
 
+def _marketing_assets_marker_path() -> Path:
+    return ASSETS_DIR / "marketing" / ".marketing_assets_version"
+
+
 def get_local_assets_version() -> str | None:
     marker = _assets_marker_path()
+    if not marker.is_file():
+        return None
+    return marker.read_text(encoding="utf-8").strip()
+
+
+def get_local_marketing_assets_version() -> str | None:
+    marker = _marketing_assets_marker_path()
     if not marker.is_file():
         return None
     return marker.read_text(encoding="utf-8").strip()
@@ -278,7 +318,50 @@ def check_assets_update() -> dict:
     }
 
 
-def _download_with_progress(url: str, dest: Path, console=None) -> None:
+def check_marketing_assets_update() -> dict:
+    """Same idea as check_assets_update(), independent marker/version -
+    see MARKETING_ASSETS_VERSION in constants.py for why."""
+    current = get_local_marketing_assets_version()
+    return {
+        "current": current,
+        "latest": MARKETING_ASSETS_VERSION,
+        "update_available": current != MARKETING_ASSETS_VERSION,
+    }
+
+
+# Polled by GET /api/download-progress (routes_api.py) while a download is
+# in flight, so the web UI can show a real, live-updating progress bar
+# instead of a static "Downloading..." string for however long a large
+# asset zip takes. Only ever meaningful during a download that was
+# triggered from the RUNNING APP (Settings > Updates / the bell's "Update &
+# Relaunch") - `langulearn setup` from a terminal already has rich's own
+# progress bar for that (see below), and there's no web UI polling it in
+# that context anyway. A plain module-level dict, not anything lock-
+# guarded: only one download ever runs at a time in this app's actual
+# usage (the frontend always awaits one step before starting the next -
+# see update.js), and simple dict assignment is already atomic enough
+# under the GIL for a polling reader that just wants the latest snapshot,
+# not a precise value from any single instant.
+_download_progress = {"filename": None, "downloaded": 0, "total": None}
+
+
+def get_download_progress() -> dict:
+    return dict(_download_progress)
+
+
+def _reset_download_progress(filename: str, total: int | None) -> None:
+    _download_progress["filename"] = filename
+    _download_progress["downloaded"] = 0
+    _download_progress["total"] = total
+
+
+def _clear_download_progress() -> None:
+    _download_progress["filename"] = None
+    _download_progress["downloaded"] = 0
+    _download_progress["total"] = None
+
+
+def _download_with_progress(url: str, dest: Path, release_tag: str, console=None) -> None:
     req = urllib.request.Request(url, headers={"User-Agent": "langulearn-setup"})
     try:
         from rich.progress import (
@@ -291,6 +374,7 @@ def _download_with_progress(url: str, dest: Path, console=None) -> None:
 
         with urllib.request.urlopen(req) as resp:
             total = int(resp.headers.get("Content-Length", 0)) or None
+            _reset_download_progress(dest.name, total)
             with Progress(
                 "[progress.description]{task.description}",
                 BarColumn(),
@@ -307,36 +391,56 @@ def _download_with_progress(url: str, dest: Path, console=None) -> None:
                             break
                         f.write(chunk)
                         progress.update(task, advance=len(chunk))
+                        _download_progress["downloaded"] += len(chunk)
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise RuntimeError(
                 f"Could not download {dest.name} (404 Not Found) from:\n  {url}\n"
-                f"The '{ASSETS_RELEASE_TAG}' GitHub Release probably hasn't been published yet "
+                f"The '{release_tag}' GitHub Release probably hasn't been published yet "
                 "(or doesn't have this file attached) - see RELEASING_ASSETS.md for how to publish it."
             ) from e
         raise
     except ImportError:
         if console:
             console.print(f"Downloading {dest.name} (no progress bar available)...")
-        with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:
-            shutil.copyfileobj(resp, f)
+        with urllib.request.urlopen(req) as resp:
+            total = int(resp.headers.get("Content-Length", 0)) or None
+            _reset_download_progress(dest.name, total)
+            with open(dest, "wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 256)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    _download_progress["downloaded"] += len(chunk)
+    finally:
+        _clear_download_progress()
 
 
-def download_and_extract_assets(force: bool = False, console=None) -> None:
-    if not force and not check_assets_update()["update_available"]:
+def _download_and_extract_assets(
+    asset_files: dict[str, str],
+    release_tag: str,
+    version: str,
+    update_check: dict,
+    marker_path: Path,
+    label: str,
+    force: bool,
+    console=None,
+) -> None:
+    if not force and not update_check["update_available"]:
         if console:
-            console.print("[dim]Avatar/voice/photo assets already up to date - skipping download.[/dim]")
+            console.print(f"[dim]{label} already up to date - skipping download.[/dim]")
         return
 
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="langulearn-assets-") as tmp:
         tmp_path = Path(tmp)
-        for kind, filename in ASSET_FILES.items():
-            url = _asset_url(filename)
+        for kind, filename in asset_files.items():
+            url = f"https://github.com/{GITHUB_REPO}/releases/download/{release_tag}/{filename}"
             zip_path = tmp_path / filename
             if console:
                 console.print(f"Downloading {filename} from {url} ...")
-            _download_with_progress(url, zip_path, console)
+            _download_with_progress(url, zip_path, release_tag, console)
 
             dest_dir = ASSETS_DIR / kind
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -345,9 +449,48 @@ def download_and_extract_assets(force: bool = False, console=None) -> None:
             with zipfile.ZipFile(zip_path) as zf:
                 zf.extractall(dest_dir)
 
-    _assets_marker_path().write_text(ASSETS_VERSION, encoding="utf-8")
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(version, encoding="utf-8")
     if console:
-        console.print("[green]\u2713[/green] Avatar/voice/photo assets ready.")
+        console.print(f"[green]\u2713[/green] {label} ready.")
+
+
+def download_and_extract_assets(force: bool = False, console=None) -> None:
+    _download_and_extract_assets(
+        ASSET_FILES,
+        ASSETS_RELEASE_TAG,
+        ASSETS_VERSION,
+        check_assets_update(),
+        _assets_marker_path(),
+        "Avatar/voice/photo assets",
+        force,
+        console,
+    )
+
+
+def download_and_extract_marketing_assets(force: bool = False, console=None) -> None:
+    """Landing-page video/gif assets - same shape as
+    download_and_extract_assets above, raises on failure rather than
+    swallowing it. Whether a failure here should actually block anything
+    is a decision for the CALLER, not this function: cli.py's run_setup()
+    wraps this call in its own try/except (a marketing-download failure
+    shouldn't block a person from ever reaching the tutor over a page they
+    may not even look at), but routes_api.py's interactive "Update
+    Marketing Assets" endpoint deliberately does NOT swallow it - someone
+    who explicitly clicked that button needs to see it failed, the same
+    way /api/update-assets already surfaces a failure for the core
+    bundle.
+    """
+    _download_and_extract_assets(
+        MARKETING_ASSET_FILES,
+        MARKETING_ASSETS_RELEASE_TAG,
+        MARKETING_ASSETS_VERSION,
+        check_marketing_assets_update(),
+        _marketing_assets_marker_path(),
+        "Marketing (landing-page) assets",
+        force,
+        console,
+    )
 
 
 # ---------------------------------------------------------------------------

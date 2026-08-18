@@ -1,15 +1,16 @@
-/* --- Learning page top bar: settings avatar button + dropdown ---
-   Circular avatar icon (first letter of the profile's name), matching
+/* --- Top bar profile-menu button + dropdown (index.html, global - see
+   profileMenu.js) --- Circular avatar icon (first letter of the
+   profile's name, or "Login" text when no profile is active), matching
    .profile-tile-avatar's visual language on /profiles - a scaled-down
    copy rather than a shared class, since profiles_page.css isn't loaded
-   on the learning page. */
+   everywhere this is. */
 
-#settingsMenuWrap {
+#profileMenuWrap {
   position: relative;
 }
 
 .settings-avatar-btn {
-  width: 32px;
+  min-width: 32px;
   height: 32px;
   border-radius: 50%;
   background: var(--panel-raised);
@@ -18,13 +19,20 @@
   font-family: var(--font-display);
   font-size: 0.85rem;
   font-weight: 600;
-  padding: 0;
+  padding: 0 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
 .settings-avatar-btn:hover { border-color: var(--accent); color: var(--text); }
+/* "Login" state - text instead of a single initial, so the button widens
+   to fit rather than clipping (see min-width/padding above). */
+.settings-avatar-btn.profile-menu-btn-login {
+  font-size: 0.72rem;
+  font-weight: 500;
+  border-radius: 999px;
+}
 
 .settings-dropdown {
   display: none;
@@ -78,11 +86,12 @@
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
-  width: 640px;
+  width: 760px;
   max-width: 94vw;
-  height: 480px;
-  max-height: 86vh;
+  height: 640px;
+  max-height: 88vh;
   overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
 }
 
 #settingsBody {
@@ -119,13 +128,13 @@
 }
 
 #settingsSidebar {
-  flex: 0 0 170px;
+  flex: 0 0 200px;
   background: var(--panel-raised);
   border-right: 1px solid var(--border);
-  padding: 18px 10px;
+  padding: 22px 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
 }
 
@@ -136,15 +145,17 @@
   border-radius: 8px;
   color: var(--text-muted);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   font-weight: 500;
-  padding: 9px 10px;
+  padding: 10px 12px;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.settings-cat-btn:hover { color: var(--text); }
+.settings-cat-btn:hover { color: var(--text); background: rgba(0, 0, 0, 0.04); }
 .settings-cat-btn.selected {
   background: var(--accent-soft);
   color: var(--accent);
+  font-weight: 600;
 }
 
 #settingsContent {
@@ -153,15 +164,93 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 24px 28px;
+  padding: 32px 40px;
   overflow-y: auto;
 }
 
 .settings-pane h3 {
   font-family: var(--font-display);
-  font-size: 1.05rem;
-  margin: 0 0 16px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0 0 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
+
+/* --- Field chrome: labels, text inputs, selects, hint text (General,
+   Account, Voice & hands-free, Learning tabs all use these). Deliberately
+   self-contained and scoped to #settingsModal rather than relying on
+   sidebar.css's near-identical .text-input/select/.field-label/
+   .field-hint - the Settings modal is global (index.html, reachable from
+   every page) but sidebar.css is only linked on the pages that happen to
+   have their own sidebar (learning, get-started, avatar-select,
+   handsfree-setup, profiles, quiz-mode). On /landing and /whats-new,
+   which don't load it, these controls rendered with zero styling -
+   default-native inputs and selects - since nothing else on those pages
+   defined this shared chrome. Scoping it here with an ID selector also
+   guarantees it always wins regardless of stylesheet load order, so the
+   modal looks identical no matter which page it was opened from. */
+
+#settingsModal .field-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 22px 0 9px;
+}
+#settingsModal .field-label:first-of-type { margin-top: 0; }
+
+#settingsModal .text-input,
+#settingsModal select {
+  width: 100%;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#settingsModal select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%238b93a3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1.5 2 6 6.2 10.5 2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+#settingsModal .text-input:hover,
+#settingsModal select:hover { border-color: var(--text-muted); }
+#settingsModal .text-input:focus-visible,
+#settingsModal select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+#settingsModal .text-input::placeholder { color: var(--text-muted); }
+
+#settingsModal .field-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#settingsModal .field-row .text-input,
+#settingsModal .field-row select { flex: 1; min-width: 0; }
+
+#settingsModal .field-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin: 7px 0 0;
+  line-height: 1.45;
+}
+#settingsModal .field-hint a { color: var(--accent); }
 
 /* --- General tab: save row --- */
 
@@ -244,6 +333,135 @@
   color: #fff;
 }
 
+/* --- General tab: theme (System/Light/Dark) segmented control - same
+   shape as .difficulty-toggle above, with a red frame around the active
+   option rather than a filled background, so it reads as a selection
+   indicator distinct from the difficulty picker's own filled style. --- */
+
+.theme-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.theme-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 0;
+  background: var(--panel-raised);
+  border: 2px solid transparent;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.theme-option:last-child { border-right: none; }
+.theme-option:hover { color: var(--text); }
+.theme-option.selected {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* --- Stats tab (statsPane.js) --- */
+
+.stats-summary-row {
+  display: flex;
+  gap: 10px;
+}
+.stats-summary-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 8px;
+}
+.stats-summary-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.stats-summary-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.stats-language-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+.stats-language-card {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.stats-language-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.stats-language-title {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.stats-language-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.stats-bar-wrap { margin-top: 8px; }
+.stats-bar-wrap:first-of-type { margin-top: 0; }
+.stats-bar-caption {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+.stats-bar-track {
+  height: 6px;
+  background: var(--panel);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stats-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.stats-language-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.stats-badge {
+  font-size: 0.7rem;
+  color: var(--text);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
 /* --- Data controls: export learnt notes (one row per conversation - up
    to 5 visible, then this scrolls; doesn't affect the rest of the tab). --- */
 
@@ -319,7 +537,8 @@
 .update-status-row:last-of-type { border-bottom: none; }
 
 @media (max-width: 560px) {
-  #settingsModal { height: 86vh; }
+  #settingsModal { width: 96vw; height: 90vh; max-height: 90vh; }
+  #settingsContent { padding: 22px 20px; }
   #settingsBody {
     flex-direction: column;
   }

@@ -290,7 +290,7 @@ DEFAULT_MODEL = MODEL_OPTIONS[1]["id"]
 # importing this directly, falling back to this constant only if the
 # package isn't recognized as installed at all (e.g. running straight fromgit
 # a source checkout without ever having been pip-installed).
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.3.0"
 
 # OS-appropriate per-user data directory (profiles.json, memory.db,
 # voice_enrollment/) instead of storing user data inside the package tree
@@ -334,6 +334,9 @@ PROFILES_FILE = DATA_DIR / "profiles.json"
 # downloaded once by `langulearn setup`/first run (see cli.py's bootstrap)
 # from a GitHub Release into this OS-managed location instead, alongside
 # the rest of DATA_DIR. main.py mounts /avatar, /voices, /photos from here.
+# The landing-page's marketing video/gif assets live here too, under
+# ASSETS_DIR/marketing (main.py mounts /marketing) - same reasoning, own
+# independent version/tag (see MARKETING_ASSETS_VERSION below).
 ASSETS_DIR = DATA_DIR / "assets"
 
 # Bumped independently of APP_VERSION (see cli.py) - these assets rarely
@@ -346,6 +349,18 @@ ASSETS_VERSION = "1"
 # are attached to - see cli.py's _ASSET_FILES for the exact download URLs
 # built from this.
 ASSETS_RELEASE_TAG = "assets-v1"
+
+# Landing-page (marketing) video/gif assets - same download-on-setup
+# pattern as the avatar/voice/photo bundle above (see ASSETS_DIR), but
+# versioned and tagged completely independently of it rather than folded
+# into ASSET_FILES/ASSETS_VERSION. Those three are core, ~450MB, and
+# rarely change; this one is landing-page-only, much smaller, and likely
+# to get iterated on its own schedule - sharing one version number would
+# mean every marketing-asset tweak forces existing users to re-download
+# the entire 450MB core bundle too, just to get a few new MB of video. See
+# design_plans/workflow/RELEASING_MARKETING_ASSETS.md.
+MARKETING_ASSETS_VERSION = "1"
+MARKETING_ASSETS_RELEASE_TAG = "marketing-v1"
 
 # Hand-written release notes, one file per version - see
 # releases/vX.Y.Z_release.md. Bundled as package data (pyproject.toml)
@@ -379,6 +394,8 @@ PROFILE_EDITABLE_FIELDS = (
     "langfuse_public_key",
     "langfuse_secret_key",
     "langfuse_base_url",
+    "auto_backup_enabled",
+    "auto_backup_interval_days",
 )
 
 # Live API connect retries. Classification (is_transient_error) and

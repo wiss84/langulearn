@@ -38,6 +38,11 @@ async function openNotesModal(profileId, conversationId, label) {
   notesVocabList.innerHTML = '';
   notesLessonList.innerHTML = '';
   notesModalOverlay.classList.add('visible');
+  // Forces an immediate repaint - see profileDetail.js's openProfileDetail
+  // for the full explanation (a display:none -> flex toggle on a
+  // position:fixed overlay wasn't reliably painting until something else
+  // forced a recomposite).
+  void notesModalOverlay.offsetHeight;
 
   const res = await fetch(`/api/profiles/${profileId}/conversations/${conversationId}/notes`);
   if (!res.ok) return;

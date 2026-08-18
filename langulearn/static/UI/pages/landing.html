@@ -1,51 +1,92 @@
 {% extends "index.html" %}
 
-{% block topbar_home %}
-<a id="homeLink" href="/profiles" class="icon-btn" title="Home">🏠</a>
-{% endblock %}
-
 {% block topbar_left_extra %}
 <span class="app-name-text">LanguLearn</span>
 {% endblock %}
 
-{% block title %}LanguLearn AI{% endblock %}
+{% block title %}LanguLearn AI - Learn a language, out loud{% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
 <link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
 <link rel="stylesheet" href="/UI/styles/landing.css?v=1" />
 {% endblock %}
 
 {% block content %}
-<div id="landingWrap">
-  <div id="landingCard">
-    <h1 id="landingTitle">LanguLearn AI</h1>
-    <p id="landingSubtitle">A few things about you and your tutor, then we'll pick your avatar.</p>
+<div id="marketingWrap">
 
-    <div id="landingForm">
-      <label class="field-label" for="firstNameInput">First name</label>
-      <input id="firstNameInput" type="text" class="text-input" placeholder="Your name" maxlength="40" autocomplete="off" />
-
-      <label class="field-label" for="nativeLanguageInput">You speak</label>
-      <input id="nativeLanguageInput" type="text" class="text-input" placeholder="English" autocomplete="off" />
-
-      <label class="field-label" for="apiKeyInput">Gemini API key</label>
-      <div class="field-row">
-        <input id="apiKeyInput" type="password" class="text-input" placeholder="Paste your Gemini API key" autocomplete="off" />
-        <button id="toggleApiKeyBtn" class="icon-btn" type="button" title="Show/hide API key">👁️</button>
+  <section id="heroSection">
+    <div id="heroCopy">
+      <span class="eyebrow">Self-hosted &middot; free-tier &middot; no subscriptions</span>
+      <h1>Learn a language by <em>talking</em>, not tapping.</h1>
+      <p class="hero-sub">A real-time, voice-first AI tutor with a face - running on your own machine, not someone else's cloud. No account, no monthly fee, nothing about your conversations ever leaves your computer.</p>
+      <div id="heroCta">
+        <button id="heroCtaBtn" class="primary-btn" type="button">Get started</button>
+        <a href="#tutorsSection" class="secondary-btn">Meet the tutors</a>
       </div>
-      <p class="field-hint">Free from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Stored on your profile - required to connect.</p>
-
-      <label class="field-label" for="modelSelect">Model</label>
-      <select id="modelSelect"></select>
-      <p class="field-hint" id="modelHint"></p>
-
-      <button id="nextBtn" class="primary-btn" type="button" disabled style="width:100%; margin-top: 24px;">Next</button>
     </div>
+    <div id="heroVisual">
+      <div id="heroVisualGlow"></div>
+      <!-- Decorative only - the h1/p beside it already carry the full
+           message, so this doesn't need its own accessible text. Video
+           instead of a gif for the same reason dance.gif is 50+MB while
+           the equivalent video is ~5MB: gif has no real inter-frame
+           compression and is capped at 256 colors per frame, so any
+           video codec beats it by an order of magnitude at this length -
+           gif's one advantage (autoplay without any of the video-specific
+           attributes below) isn't worth 10x the download. -->
+      <video id="heroVisualMedia" autoplay loop muted playsinline aria-hidden="true">
+        <source src="/marketing/speaking.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </section>
+
+  <section id="academySection">
+    <img src="/LanguLearn_Academy.webp" alt="LanguLearn Academy" id="academyImage" />
+    <div id="academyCopy">
+      <span class="eyebrow">How it works</span>
+      <h2>One tutor. Every conversation.</h2>
+      <p>Pick a scenario and a difficulty, then just start talking. Your tutor keeps pace with you, quizzes you on what's already come up, and brings your mistakes back around later.</p>
+      <ul class="academy-points">
+        <li>Real-time spoken conversation, not scripted phrase drills</li>
+        <li>Spaced-repetition vocabulary review, built in</li>
+        <li>Runs on your machine, on the free Gemini API tier</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="danceSection">
+    <div id="danceCopy">
+      <span class="eyebrow">Celebrate LEARNING MILESTONES</span>
+      <h2>Milestones get a victory lap, not just a checkmark.</h2>
+      <p>Cross a streak, wrap up a tough lesson, or hit a new milestone, Stop and celebrate your hard work, you deserve a victory dance.</p>
+    </div>
+    <div id="danceVisual">
+      <div id="danceVisualGlow"></div>
+      <!-- Same reasoning as #heroVisualMedia - video instead of gif for
+           the file-size win, not just for this one clip. -->
+      <video id="danceVisualMedia" autoplay loop muted playsinline aria-hidden="true">
+        <source src="/marketing/dancing.mp4" type="video/mp4" />
+      </video>
+    </div>
+  </section>
+
+  <section id="tutorsSection">
+    <span class="eyebrow">Choose your tutor</span>
+    <h2>30 tutors, 30 voices</h2>
+    <p class="tutors-sub">Every tutor has its own face, voice, and tone - pick whoever you click with.</p>
+  </section>
+  <div id="tutorMarqueeWrap">
+    <div id="tutorMarqueeTrack"></div>
   </div>
+
+  <section id="finalCtaSection">
+    <h2 id="finalCtaHeadline">Ready when you are.</h2>
+    <button id="finalCtaBtn" class="primary-btn" type="button">Get started</button>
+  </section>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/UI/scripts/landing.js"></script>
+<script src="/UI/scripts/landing.js?v=1"></script>
 {% endblock %}

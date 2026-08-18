@@ -4,14 +4,14 @@
 // more avatars exist), previews the selection via avatarPreview.js.
 //
 // Two modes, both landing on this same page:
-//  - New profile (no ?profile_id in the URL): came from /landing, which
-//    stashed name/native_language/api_key/model_name in sessionStorage.
-//    Next creates the profile AND its first conversation.
+//  - New profile (no ?profile_id in the URL): came from /get-started,
+//    which stashed name/native_language/api_key/model_name in
+//    sessionStorage. Next creates the profile AND its first conversation.
 //  - Existing profile (?profile_id=<id> in the URL): came from "+ Learn a
 //    new language" in a profile's detail modal on /profiles. Next only
 //    creates a new conversation under that profile - no profile fields to
 //    collect, and Back returns to /profiles (reopening that same profile's
-//    detail modal) rather than /landing.
+//    detail modal) rather than /get-started.
 
 import { initAvatarHead, loadAvatarAndPlaySample, playGreeting, playPoseShowcase } from '/UI/scripts/avatarPreview.js';
 
@@ -161,7 +161,7 @@ backBtn.addEventListener('click', () => {
   // see profilesPage.js's handling of ?open=.
   window.location.href = existingProfileId
     ? `/profiles?open=${encodeURIComponent(existingProfileId)}`
-    : '/landing';
+    : '/get-started';
 });
 
 async function createConversationForProfile(profileId, nativeLanguage, modelName) {
@@ -206,9 +206,9 @@ nextBtn.addEventListener('click', async () => {
       localStorage.setItem('tutorProfileId', existingProfileId);
       window.location.href = '/';
     } else {
-      // --- New profile onboarding, from /landing's draft ---
+      // --- New profile onboarding, from /get-started's draft ---
       const raw = sessionStorage.getItem(DRAFT_KEY);
-      if (!raw) { window.location.href = '/landing'; return; }
+      if (!raw) { window.location.href = '/get-started'; return; }
       const draft = JSON.parse(raw);
 
       nextBtn.textContent = 'Creating profile...';
@@ -237,7 +237,7 @@ nextBtn.addEventListener('click', async () => {
 
 async function init() {
   if (!existingProfileId && !sessionStorage.getItem(DRAFT_KEY)) {
-    window.location.href = '/landing';
+    window.location.href = '/get-started';
     return;
   }
 

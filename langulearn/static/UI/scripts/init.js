@@ -21,16 +21,21 @@ async function init() {
       // startRecording's own error handling, which resets micReadyPromise
       // and shows a proper error, so nothing gets silently stuck.
       ensureMicReady().catch(() => {});
+      // Fire-and-forget - see backup.maybe_run_auto_backup's own docstring
+      // for what this actually does (a no-op unless auto-backup is on AND
+      // its interval has elapsed). Once per learning-page load is the
+      // "once per app session" cadence this is meant to run at - no need
+      // to await or surface anything here either way.
+      fetch(`/api/profiles/${savedId}/check-auto-backup`, { method: 'POST' }).catch(() => {});
       return;
     } catch (e) {
       localStorage.removeItem('tutorProfileId');
     }
   }
-  // No active profile (first run, or a stale/deleted one) - the /profiles
-  // picker is the gate for entering the app, same idea as a Netflix-style
-  // "who's watching" screen. It links to /landing itself if there are no
-  // profiles at all yet.
-  window.location.href = '/profiles';
+  // No active profile (first run, or a stale/deleted one) - /landing is
+  // the app's universal entry point (see desktop.py), so bounce there
+  // rather than assuming this page should render without one.
+  window.location.href = '/landing';
 }
 
 init();

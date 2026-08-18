@@ -25,11 +25,24 @@ const saveEnrollmentBtn = document.getElementById('saveEnrollmentBtn');
 const startTestsBtn = document.getElementById('startTestsBtn');
 const thresholdTestLog = document.getElementById('thresholdTestLog');
 const hfSetupDoneSection = document.getElementById('hfSetupDoneSection');
+const hfBackBtn = document.getElementById('hfBackBtn');
 const hfContinueBtn = document.getElementById('hfContinueBtn');
 
 const DEFAULT_MIC_CALIBRATION_KEY = '__default__';
 
-let currentProfile = null;
+// currentProfile is NOT declared here - it's the shared global `let
+// currentProfile` already declared by profileMenu.js (loaded on every
+// page, including this one, via index.html). This file used to redeclare
+// its own separate `let currentProfile = null;` right here, which was a
+// silent time bomb: two `let` declarations of the same name in the same
+// global scope (classic scripts, not modules - both this file and
+// profileMenu.js load as plain <script> tags sharing one scope) is a
+// SyntaxError the instant the SECOND one is parsed - and a SyntaxError
+// kills that entire script before a single line of it runs. Nothing on
+// this page ever silently failed BECAUSE of this - the whole script,
+// including every event listener (Back, Continue, calibrate, everything)
+// simply never executed at all. init() below now assigns straight into
+// profileMenu.js's existing global instead of shadowing it.
 let speechModelStatus = 'checking'; // 'checking' | 'loading' | 'ready' | 'failed'
 let enrollmentSaved = false; // for the CURRENT mic - re-checked on every mic switch
 
@@ -725,7 +738,23 @@ async function runThresholdTests() {
 
 startTestsBtn.addEventListener('click', runThresholdTests);
 
-// --- Continue ---
+// --- Back / Continue ---
+// Deliberately different destinations, not an oversight: Back is a
+// "nevermind, take me back to wherever I actually was" escape hatch - the
+// Settings modal's "Redo hands-free setup" button (settings.js) is global
+// now and can send someone here from ANY page (landing, profiles, quiz-
+// mode, wherever Settings happened to be open), and audio.js's inline
+// hands-free-button prompt sends them here from the learning page itself
+// - history.back() genuinely returns to whichever of those it was, rather
+// than guessing one fixed destination. Continue means something different
+// on purpose - "you're done, go actually USE this" - and that only ever
+// makes sense pointing at '/' (the learning page) regardless of where
+// setup was started from, which is exactly what its own label and done-
+// message already promise ("go back to your session and re-click the
+// hands-free button").
+hfBackBtn.addEventListener('click', () => {
+  window.history.back();
+});
 
 hfContinueBtn.addEventListener('click', () => {
   window.location.href = '/';

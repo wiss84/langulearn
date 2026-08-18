@@ -20,6 +20,24 @@
 }
 .primary-btn:hover { background: var(--accent-hover); }
 
+/* Shared "quiet" secondary action - close/cancel buttons that shouldn't
+   compete visually with a page's primary-btn. Matches the What's New
+   page's close button look (whats_new.css used to style that one by ID
+   only; this is the same look promoted to a reusable class). */
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.secondary-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 /* --- Voice enrollment rows (used on /landing and the profile detail
    modal - see landing.js / profileDetail.js) --- */
 

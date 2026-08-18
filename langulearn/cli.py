@@ -27,8 +27,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .constants import ASSETS_VERSION, DATA_DIR
-from .updater import check_app_update, download_and_extract_assets
+from .constants import DATA_DIR
+from .updater import (
+    check_app_update,
+    check_assets_update,
+    check_marketing_assets_update,
+    download_and_extract_assets,
+    download_and_extract_marketing_assets,
+)
 
 _SETUP_MARKER = DATA_DIR / ".setup_complete"
 
@@ -234,16 +240,58 @@ def run_setup(force: bool = False) -> None:
 
     _install_extra_deps(console)
     download_and_extract_assets(force=force, console=console)
+    try:
+        download_and_extract_marketing_assets(force=force, console=console)
+    except Exception as e:
+        # Deliberately swallowed here, unlike the core assets call just
+        # above (whose failure DOES propagate and abort setup): those are
+        # required for the app to function at all, but the marketing
+        # assets only back the /landing page's video/gif elements - a
+        # person setting up the app for the first time shouldn't be
+        # blocked from ever reaching the tutor over a failed download of a
+        # page they may not even look at. A failure here just means those
+        # elements 404 until the next successful setup run (this same
+        # function re-runs on every launch until _setup_already_done()
+        # sees the marketing marker current - see that function below).
+        console.print(
+            f"[yellow]Could not download marketing assets - the landing page's video/gif elements will 404: {e}[/yellow]"
+        )
     _create_desktop_shortcut(console)
 
-    _SETUP_MARKER.write_text(ASSETS_VERSION, encoding="utf-8")
+    _SETUP_MARKER.write_text("1", encoding="utf-8")
     console.print(
         "\n[bold green]Setup complete.[/bold green] Run 'langulearn' (or use the new desktop shortcut) to start the app."
     )
 
 
 def _setup_already_done() -> bool:
-    return _SETUP_MARKER.is_file() and _SETUP_MARKER.read_text(encoding="utf-8").strip() == ASSETS_VERSION
+    """Two independent conditions, not one combined marker string: has
+    INITIAL setup ever completed at all (this marker file's mere
+    existence - extra deps installed, desktop shortcut created), AND are
+    the downloaded assets CURRENTLY up to date (checked live, every time,
+    against each asset group's own marker file in ASSETS_DIR - see
+    updater.py's check_assets_update/check_marketing_assets_update).
+
+    That second condition used to be baked into THIS marker's own content
+    instead (a combined version string this function compared against) -
+    but that went stale the moment the running WEB APP downloaded new
+    assets on its own (Settings > Updates, or the bell's "Update &
+    Relaunch"/"Update Assets"): those endpoints (routes_api.py) correctly
+    update each asset group's OWN marker in ASSETS_DIR, but had no reason
+    to know about or update this SEPARATE file too. The practical result:
+    every relaunch immediately after a web-triggered asset update saw a
+    stale marker here and ran a whole redundant extra setup pass first
+    (downloads themselves were correctly skipped, since THOSE checks read
+    the real markers - but the shortcut got needlessly recreated and
+    setup's console output printed, adding delay before the app actually
+    started). Reading the same live markers directly here instead removes
+    the second, redundant copy of that state entirely - there's exactly
+    one place each asset group's version is now tracked, not two that can
+    drift apart.
+    """
+    if not _SETUP_MARKER.is_file():
+        return False
+    return not check_assets_update()["update_available"] and not check_marketing_assets_update()["update_available"]
 
 
 def _print_app_update_notice(console) -> None:

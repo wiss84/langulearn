@@ -13,7 +13,7 @@ values actually get interpolated, and the tool schema declares what it's
 supposed to.
 """
 
-from langulearn import live_session
+from langulearn import live_session, quizzes
 from langulearn.tutor_instructions import SPACED_REPETITION_CONTEXT_TEMPLATE
 from langulearn.tutor_tools import QUIZ_TOOL
 
@@ -88,7 +88,7 @@ def _quiz_item_schema():
 def test_quiz_tool_has_no_top_level_quiz_type():
     """quiz_type used to be a top-level model-supplied field, ambiguous for
     a mixed-type quiz and redundant with the per-item item_type below - now
-    computed server-side instead (see live_session._compute_quiz_type)."""
+    computed server-side instead (see quizzes.compute_quiz_type)."""
     params, _ = _quiz_item_schema()
     assert "quiz_type" not in params.properties
 
@@ -117,26 +117,30 @@ def test_quiz_tool_item_type_is_the_only_type_enum():
     assert set(item_schema.properties["item_type"].enum) == {"multiple_choice", "fill_blank_dragdrop"}
 
 
-# --- _compute_quiz_type / _validate_quiz_items (live_session.py) ---
+# --- quizzes.compute_quiz_type / live_session._validate_quiz_items ---
+# compute_quiz_type moved from live_session.py to quizzes.py so the
+# standalone Test Yourself review quizzes (routes_api.py's
+# reviewable-quiz endpoints) could share it too, rather than each having
+# its own copy - see quizzes.py's own docstring for that function.
 
 
 def test_compute_quiz_type_uniform_multiple_choice():
     items = [{"item_type": "multiple_choice"}, {"item_type": "multiple_choice"}]
-    assert live_session._compute_quiz_type(items) == "multiple_choice"
+    assert quizzes.compute_quiz_type(items) == "multiple_choice"
 
 
 def test_compute_quiz_type_uniform_dragdrop():
     items = [{"item_type": "fill_blank_dragdrop"}]
-    assert live_session._compute_quiz_type(items) == "fill_blank_dragdrop"
+    assert quizzes.compute_quiz_type(items) == "fill_blank_dragdrop"
 
 
 def test_compute_quiz_type_mixed():
     items = [{"item_type": "multiple_choice"}, {"item_type": "fill_blank_dragdrop"}]
-    assert live_session._compute_quiz_type(items) == "mixed"
+    assert quizzes.compute_quiz_type(items) == "mixed"
 
 
 def test_compute_quiz_type_empty_items_has_a_fallback():
-    assert live_session._compute_quiz_type([]) in {"multiple_choice", "fill_blank_dragdrop", "mixed"}
+    assert quizzes.compute_quiz_type([]) in {"multiple_choice", "fill_blank_dragdrop", "mixed"}
 
 
 def test_validate_quiz_items_logs_blank_answer_count_mismatch(capsys):

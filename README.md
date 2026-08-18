@@ -25,6 +25,7 @@ You hold to talk → speak → Gemini Live API (audio in, audio out) → avatar 
 
 ## Demo Videos
 
+- **0.2.0 Release** — Watch the full [LanguLearn UI-UX](https://youtu.be/o4WNlLXm4qo)
 - **0.2.0 Release** — Watch the full [LanguLearn Quiz System](https://youtu.be/9d4UrbZbwfU)
 - **0.1.0  Initial Release** — Watch the full [LanguLearn Tutorial](https://youtu.be/0YEskMeH4Gk)
 
@@ -70,7 +71,11 @@ LanguLearn is built around the Gemini **Live API** specifically because it's ful
 - **Hands-free mode** — enroll your voice once and the tutor listens continuously, filtering out background noise and other speakers via on-device speaker verification (nothing about your voiceprint ever leaves your machine)
 - **Persistent memory** — every conversation gets a rolling summary, tracked vocabulary, and a recurring-mistakes log, so a reconnect (or a restart) doesn't mean starting from zero
 - **In-conversation quizzes** — the tutor can quiz you mid-conversation with multiple-choice or drag-and-drop questions, pulling from vocabulary you've actually gotten wrong before, without ever interrupting the conversation itself
+- **Test Yourself** — replay every quiz item from a whole conversation as one standalone round, any time, filtered by date range and deduplicated - a quick way to check what's actually sticking without waiting for the tutor to bring it up
+- **Stats & milestones** — a day streak, hours studied, and a per-language breakdown of words mastered, quiz accuracy, and perfect-quiz badges, with a notification the moment you cross a milestone
+- **Profile backup** — export one profile's full conversation/quiz history and voice enrollment as a single zip, and import it back later; optional scheduled automatic backups too
 - **Multiple profiles, multiple languages** — each profile can run several conversations at once, each with its own voice, language pair, difficulty, and scenario
+- **Home page & profile switching** — the app opens on a real home page every launch (your last-active profile stays logged in automatically), with a permanent profile-switcher icon and a profile menu for Settings/switching from anywhere
 - **Roleplay scenarios** — free conversation, ordering at a café, checking in at an airport, asking for directions, and more
 - **Three difficulty levels** — beginner, intermediate, advanced, adjustable per conversation
 - **Automatic model fallback** — if one Gemini model is unavailable, LanguLearn transparently retries on a second one
@@ -99,7 +104,7 @@ pip install langulearn
 langulearn setup          # install extras + download assets + create shortcut, without launching
 ```
 
-That's it. The first run does a one-time setup automatically: installs the two extra packages hands-free mode needs, downloads the avatar/voice/photo assets (~450MB, so this part takes a minute), and creates a desktop shortcut for you — then opens the app. Every run after that just opens the app straight away, no repeated setup, whether you launch it via `langulearn` again or the new desktop shortcut.
+That's it. The first run does a one-time setup automatically: installs the two extra packages hands-free mode needs, downloads the avatar/voice/photo assets (~372MB) and the landing page's video/gif assets (~84MB) — 455MB total, so this part takes a couple of minutes — and creates a desktop shortcut for you — then opens the app. Every run after that just opens the app straight away, no repeated setup, whether you launch it via `langulearn` again or the new desktop shortcut.
 
 No `.env` file or API key setup needed - you'll paste your own free Gemini API key directly into the app the first time you create a profile.
 

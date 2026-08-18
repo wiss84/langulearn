@@ -84,6 +84,8 @@ model, since nothing about it indicates that model is unhealthy.
 import asyncio
 import base64
 import re
+import time
+from datetime import date
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -141,23 +143,6 @@ def _quiz_results_summary(items: list[dict]) -> str:
 
 
 _BLANK_RE = re.compile(r"\{\d+\}")
-
-
-def _compute_quiz_type(items: list[dict]) -> str:
-    """Derives the quiz_sessions.quiz_type label (a DB/analytics field
-    only - see quizzes.py) from what the items actually contain, since
-    QUIZ_TOOL's schema no longer asks the model for a top-level quiz_type
-    directly - each item now self-declares its own item_type instead (see
-    tutor_tools.py), which is the only thing the frontend actually reads.
-    """
-    item_types = {i.get("item_type") for i in items if isinstance(i, dict)}
-    if item_types == {"multiple_choice"}:
-        return "multiple_choice"
-    if item_types == {"fill_blank_dragdrop"}:
-        return "fill_blank_dragdrop"
-    if item_types:
-        return "mixed"
-    return "multiple_choice"  # empty/malformed items - arbitrary fallback, never actually shown
 
 
 def _validate_quiz_items(items: list[dict]) -> None:
@@ -360,6 +345,36 @@ def _connect_failure_payload(exc: Exception, fallback_message: str) -> dict:
     return {"type": "error", "message": fallback_message}
 
 
+def _record_active_day(profile: dict) -> None:
+    """Updates last_active_date/current_streak (Settings modal Stats tab -
+    see stats.py) once per calendar day this profile opens a Live session.
+    Uses the server's own local date, not UTC - this is a self-hosted app
+    running on the student's own machine, so server-local time already IS
+    the student's local time, and "today"/streaks should mean that, not a
+    UTC day boundary that could flip mid-evening for them.
+
+    A gap of exactly one day extends the streak; any other gap (including
+    0, already handled above) resets it to 1. No no-profile-yet fallback
+    session (profile["id"] is None) ever reaches here - see its only call
+    site in ws_session.
+    """
+    today = date.today().isoformat()
+    last = profile.get("last_active_date")
+    if last == today:
+        return  # already recorded today - a same-day reconnect shouldn't double-increment
+    streak = 1
+    if last:
+        try:
+            gap = (date.fromisoformat(today) - date.fromisoformat(last)).days
+            if gap == 1:
+                streak = (profile.get("current_streak") or 0) + 1
+        except ValueError:
+            pass  # malformed stored date (shouldn't happen) - treat as a fresh start rather than crash the session
+    patch_profile(profile["id"], {"last_active_date": today, "current_streak": streak})
+    profile["last_active_date"] = today
+    profile["current_streak"] = streak
+
+
 @router.websocket("/ws/session")
 async def ws_session(websocket: WebSocket):
     await websocket.accept()
@@ -402,6 +417,7 @@ async def ws_session(websocket: WebSocket):
         # the source of truth for voice/language/model once it exists.
         conv_config = dict(conv["config"])
         patch_profile(profile_id, {"active_conversation_id": conv["id"]})
+        _record_active_day(profile)
     else:
         # No profile selected yet (first-run fallback) - fully ephemeral,
         # no persisted memory, config comes straight from the init message.
@@ -584,6 +600,17 @@ async def ws_session(websocket: WebSocket):
         )
     except Exception as exc:  # noqa: BLE001
         print(f"[ws_session] send_json failed: {exc}")
+
+    # Stats tab's "hours studied" figure (stats.py) - one continuous
+    # wall-clock span per Live session, from here (connected and about to
+    # start relaying) to the accumulation in this function's finally block
+    # below, regardless of how many go_away/1011 reconnects happen to the
+    # underlying Gemini session in between (those replace live_session
+    # in-place without this browser websocket ever closing - see the
+    # module docstring). time.monotonic() rather than wall-clock time
+    # since only the elapsed duration matters, never an absolute timestamp,
+    # and monotonic is immune to the system clock changing mid-session.
+    session_start_monotonic = time.monotonic()
 
     # Voice input is gated (see _VOICE_MESSAGE_TYPES) while quiz_state["active"]
     # is True - set either here (an unfinished quiz from an earlier app
@@ -932,7 +959,9 @@ async def ws_session(websocket: WebSocket):
                                             payload = dict(fc.args or {})
                                             items = payload.get("items") or []
                                             _validate_quiz_items(items)
-                                            quiz_id = quizzes.start_quiz_session(conv["id"], _compute_quiz_type(items), payload)
+                                            quiz_id = quizzes.start_quiz_session(
+                                                conv["id"], quizzes.compute_quiz_type(items), payload
+                                            )
                                         # Recorded in full, not summarized - this is
                                         # exactly the artifact needed to permanently
                                         # diagnose a malformed generated quiz (see
@@ -1110,6 +1139,24 @@ async def ws_session(websocket: WebSocket):
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"[ws_session] summarize_conversation failed: {exc}")
+        if profile.get("id"):
+            # Best-effort, same posture as summarize_conversation just above -
+            # re-fetches the profile fresh rather than trusting the one held
+            # in this function's closure the whole session, since a long
+            # session could easily outlive that snapshot (e.g. the person
+            # edits their name mid-session via Settings) and this must only
+            # ever ADD to total_seconds_studied, never overwrite it with a
+            # stale total.
+            try:
+                elapsed_seconds = int(time.monotonic() - session_start_monotonic)
+                if elapsed_seconds > 0:
+                    fresh = get_profile_by_id(profile["id"]) or profile
+                    patch_profile(
+                        profile["id"],
+                        {"total_seconds_studied": (fresh.get("total_seconds_studied") or 0) + elapsed_seconds},
+                    )
+            except Exception as exc:  # noqa: BLE001
+                print(f"[ws_session] total_seconds_studied update failed: {exc}")
         try:
             await live_cm.__aexit__(None, None, None)
         except Exception as exc:  # noqa: BLE001

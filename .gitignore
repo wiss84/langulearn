@@ -26,3 +26,9 @@ langulearn/static/UI/avatar_test/
 LanguLearn.bat
 Test_suite.bat
 
+# Marketing (landing-page) video/gif source assets - like avatar/voices/
+# photos, these are release-time-only source material, not part of the
+# pip package or the git repo. See design_plans/workflow/
+# RELEASING_MARKETING_ASSETS.md for how they get published.
+marketing_assets_source/
+

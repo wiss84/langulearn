@@ -1,21 +1,27 @@
-// LanguLearn - learning-page top bar settings menu + Settings modal.
+// LanguLearn - Settings modal (General/Account/Voice/Learning/Stats/Data
+// controls/Updates/About panes) - now loaded globally (index.html), not
+// just on the learning page, since the profile-menu button that opens it
+// (see profileMenu.js) is itself global.
 //
-// Reads/writes `currentProfile`, `currentConversationId`, and
-// `conversationsCache` directly - these are top-level `let` declarations
-// in state.js, which (like every other classic <script src> pair on this
-// page - see conversations.js) share one global lexical scope, so no
-// import/export wiring is needed.
+// Reads/writes `currentProfile` directly (declared in profileMenu.js,
+// shared top-level scope - see that file's header comment for why it,
+// not state.js, is the canonical place currentProfile lives now).
+// `currentConversationId`/`conversationsCache` are ALSO declared globally
+// (profileMenu.js) but only ever genuinely populated on the learning page
+// (conversations.js) - on every other page they stay at their empty
+// defaults, so the Learning tab's difficulty control only shows real data
+// on the learning page (a deliberate, accepted scope line: giving every
+// page its own full conversation-list fetch just for that one control
+// wasn't worth the added surface area). The Data controls export list is
+// NOT scoped this way - it does its own independent fetch (see
+// renderExportList below), since that one needs to work from any page
+// the modal can be opened from, not just the learning page.
 //
 // The dropdown only ever opens the modal now - the theme toggle used to
 // live there too, re-clicking the shared #themeToggleBtn, but that button
-// (and the dropdown item) were removed: this page suppresses
-// #themeToggleBtn entirely (see learning.html's theme_toggle block) since
-// the Settings modal's own General-tab button is the one place to flip
-// the theme here, calling theme.js's toggleAppTheme() directly instead.
-
-const settingsAvatarBtn = document.getElementById('settingsAvatarBtn');
-const settingsDropdown = document.getElementById('settingsDropdown');
-const settingsDropdownOpenBtn = document.getElementById('settingsDropdownOpenBtn');
+// (and the dropdown item) were removed: theme is now a System/Light/Dark
+// segmented control on the General tab (see below), calling theme.js's
+// setThemeMode() directly.
 
 const settingsOverlay = document.getElementById('settingsOverlay');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
@@ -24,7 +30,6 @@ const settingsPanes = document.querySelectorAll('.settings-pane');
 
 // General
 const settingsNameInput = document.getElementById('settingsNameInput');
-const settingsThemeBtn = document.getElementById('settingsThemeBtn');
 const settingsNativeLanguageInput = document.getElementById('settingsNativeLanguageInput');
 const settingsGeneralStatus = document.getElementById('settingsGeneralStatus');
 const settingsSaveGeneralBtn = document.getElementById('settingsSaveGeneralBtn');
@@ -57,6 +62,13 @@ const settingsDifficultyToggle = document.getElementById('settingsDifficultyTogg
 const settingsOpenDataFolderBtn = document.getElementById('settingsOpenDataFolderBtn');
 const settingsExportList = document.getElementById('settingsExportList');
 const settingsDeleteProfileBtn = document.getElementById('settingsDeleteProfileBtn');
+const settingsExportProfileBtn = document.getElementById('settingsExportProfileBtn');
+const settingsImportProfileBtn = document.getElementById('settingsImportProfileBtn');
+const settingsImportProfileFile = document.getElementById('settingsImportProfileFile');
+const settingsBackupStatus = document.getElementById('settingsBackupStatus');
+const settingsAutoBackupToggle = document.getElementById('settingsAutoBackupToggle');
+const settingsAutoBackupInterval = document.getElementById('settingsAutoBackupInterval');
+const settingsOpenBackupsFolderBtn = document.getElementById('settingsOpenBackupsFolderBtn');
 
 // About
 const settingsVersionText = document.getElementById('settingsVersionText');
@@ -65,34 +77,10 @@ const settingsCreditsText = document.getElementById('settingsCreditsText');
 // Updates
 const settingsAppVersionText = document.getElementById('settingsAppVersionText');
 const settingsAssetsVersionText = document.getElementById('settingsAssetsVersionText');
+const settingsMarketingVersionText = document.getElementById('settingsMarketingVersionText');
 const settingsCheckUpdatesBtn = document.getElementById('settingsCheckUpdatesBtn');
 const settingsUpdateActionBtn = document.getElementById('settingsUpdateActionBtn');
 const settingsUpdateStatus = document.getElementById('settingsUpdateStatus');
-
-// --- Topbar avatar button + dropdown ---
-
-function refreshSettingsAvatar() {
-  if (!currentProfile) return;
-  settingsAvatarBtn.textContent = (currentProfile.name[0] || '?').toUpperCase();
-  settingsAvatarBtn.title = currentProfile.name;
-}
-
-function closeSettingsDropdown() {
-  settingsDropdown.classList.remove('visible');
-}
-
-settingsAvatarBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  settingsDropdown.classList.toggle('visible');
-});
-document.addEventListener('click', (e) => {
-  if (!settingsDropdown.contains(e.target) && e.target !== settingsAvatarBtn) closeSettingsDropdown();
-});
-
-settingsDropdownOpenBtn.addEventListener('click', () => {
-  closeSettingsDropdown();
-  openSettingsModal();
-});
 
 // --- Modal open/close + category switching ---
 
@@ -118,10 +106,17 @@ async function openSettingsModal() {
   if (!currentProfile) return;
   selectSettingsCategory('general');
   settingsOverlay.classList.add('visible');
+  // Forces an immediate repaint - see profileDetail.js's openProfileDetail
+  // for the full explanation (a display:none -> flex toggle on a
+  // position:fixed overlay wasn't reliably painting until something else
+  // forced a recomposite).
+  void settingsOverlay.offsetHeight;
 
   populateGeneralPane();
   populateAccountPane();
   populateLearningPane();
+  populateStatsPane();
+  populateBackupPane();
   renderExportList();
   loadMicsForSettings();
   loadMicStatusList();
@@ -140,6 +135,7 @@ function populateGeneralPane() {
   settingsNativeLanguageInput.value = currentProfile.native_language || '';
   settingsGeneralStatus.textContent = '';
   settingsSaveGeneralBtn.disabled = true;
+  refreshThemeSegmentedControl();
 }
 
 function markGeneralDirty() {
@@ -166,7 +162,7 @@ settingsSaveGeneralBtn.addEventListener('click', async () => {
     });
     currentProfile.name = name;
     currentProfile.native_language = native_language;
-    refreshSettingsAvatar();
+    refreshProfileMenuButton();
     settingsGeneralStatus.textContent = 'Saved.';
   } catch (e) {
     settingsGeneralStatus.textContent = 'Could not save - check your connection.';
@@ -174,7 +170,20 @@ settingsSaveGeneralBtn.addEventListener('click', async () => {
   }
 });
 
-settingsThemeBtn.addEventListener('click', () => toggleAppTheme());
+// --- Theme (System / Light / Dark segmented control) ---
+
+const settingsThemeToggle = document.getElementById('settingsThemeToggle');
+
+function refreshThemeSegmentedControl() {
+  const mode = currentThemeMode();
+  settingsThemeToggle.querySelectorAll('.theme-option').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.theme === mode);
+  });
+}
+
+settingsThemeToggle.querySelectorAll('.theme-option').forEach((btn) => {
+  btn.addEventListener('click', () => setThemeMode(btn.dataset.theme));
+});
 
 // --- Account ---
 
@@ -481,9 +490,12 @@ settingsOpenDataFolderBtn.addEventListener('click', () => {
 // --- Data controls: export learnt notes ---
 // One row per conversation - Data controls is profile-scoped, so
 // exporting is offered for every language under this profile, not just
-// whichever one happens to be open right now. Reuses conversationsCache
-// as-is (same source conversations.js already populates and keeps current
-// for this page) rather than a fresh fetch.
+// whichever one happens to be open right now. Fetches its own copy of
+// the conversation list rather than reading conversationsCache - that
+// cache is only ever genuinely populated on the learning page (see
+// profileMenu.js's header comment), so relying on it here left this list
+// permanently empty on every other page the Settings modal can be opened
+// from.
 
 function conversationLabel(conv) {
   return conv.name || conv.config?.target_language || 'Conversation';
@@ -493,16 +505,32 @@ function exportDocxUrl(conversationId) {
   return `/api/profiles/${currentProfile.id}/conversations/${conversationId}/notes/export.docx`;
 }
 
-function renderExportList() {
+async function renderExportList() {
+  settingsExportList.innerHTML = '<p class="export-list-empty">Loading...</p>';
+  let conversations;
+  try {
+    const res = await fetch(`/api/profiles/${currentProfile.id}/conversations`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    conversations = data.conversations || [];
+  } catch (e) {
+    settingsExportList.innerHTML = '';
+    const err = document.createElement('p');
+    err.className = 'export-list-empty';
+    err.textContent = 'Could not load languages - check your connection.';
+    settingsExportList.appendChild(err);
+    return;
+  }
+
   settingsExportList.innerHTML = '';
-  if (!conversationsCache || conversationsCache.length === 0) {
+  if (conversations.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'export-list-empty';
     empty.textContent = 'No languages yet.';
     settingsExportList.appendChild(empty);
     return;
   }
-  conversationsCache.forEach((conv) => {
+  conversations.forEach((conv) => {
     const row = document.createElement('div');
     row.className = 'export-row';
 
@@ -554,6 +582,24 @@ function renderExportList() {
 
 let notesPrintArea = null;
 
+// Local copy of notes.js's identical helper - Data controls' Print
+// button is reachable from the Settings modal on every page (it's global,
+// see this file's header comment), but notes.js itself is only loaded on
+// the learning page and /profiles. Calling the global version from here
+// worked by accident on those two pages and threw a silent
+// ReferenceError (killing execution before window.print() ever ran) on
+// every other page - landing, get-started, avatar-select, quiz-mode,
+// whats-new - exactly matching "Export works, Print doesn't": the docx
+// export never touches this function, only the print path does.
+function formatTimestamp(value) {
+  if (!value) return '';
+  // ts on vocab_mistakes rows is unix seconds; ts on lesson_log rows is an
+  // ISO string - Date() handles both, but only multiply the numeric case.
+  const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function buildPrintHtml(label, data) {
   const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const vocabHtml = (data.vocab_mistakes || []).length
@@ -585,6 +631,98 @@ async function printConversationNotes(conversationId, label) {
   notesPrintArea.innerHTML = buildPrintHtml(label, data);
   window.print();
 }
+
+// --- Data controls: profile backup (export/import/auto-backup) ---
+// A full backup (profile identity + every conversation/quiz session under
+// it + voice enrollment) is a different, bigger thing than the per-
+// conversation notes export just above - see backup.py for what's
+// actually in the zip.
+
+function populateBackupPane() {
+  settingsBackupStatus.textContent = '';
+  settingsAutoBackupToggle.checked = !!currentProfile.auto_backup_enabled;
+  settingsAutoBackupInterval.value = String(currentProfile.auto_backup_interval_days || 7);
+  settingsAutoBackupInterval.disabled = !settingsAutoBackupToggle.checked;
+}
+
+settingsExportProfileBtn.addEventListener('click', async () => {
+  settingsExportProfileBtn.disabled = true;
+  settingsBackupStatus.textContent = 'Building backup...';
+  try {
+    const res = await fetch(`/api/profiles/${currentProfile.id}/export`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const disposition = res.headers.get('Content-Disposition');
+    const filenameMatch = disposition && disposition.match(/filename="?([^"]+)"?/);
+    a.download = filenameMatch ? filenameMatch[1] : 'LanguLearn-backup.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    settingsBackupStatus.textContent = 'Backup downloaded.';
+  } catch (e) {
+    settingsBackupStatus.textContent = 'Could not build backup - check your connection and try again.';
+  } finally {
+    settingsExportProfileBtn.disabled = false;
+  }
+});
+
+settingsImportProfileBtn.addEventListener('click', () => settingsImportProfileFile.click());
+
+settingsImportProfileFile.addEventListener('change', async () => {
+  const file = settingsImportProfileFile.files[0];
+  settingsImportProfileFile.value = ''; // always reset - re-selecting the same file should still fire 'change' next time
+  if (!file) return;
+  if (!confirm('Importing a backup replaces this profile\'s data if it already exists locally. Continue?')) return;
+
+  settingsImportProfileBtn.disabled = true;
+  settingsBackupStatus.textContent = 'Importing...';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/profiles/import', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    settingsBackupStatus.textContent = `Imported "${data.profile?.name || 'profile'}". Opening profile picker...`;
+    // Navigates to /profiles rather than reloading in place - an imported
+    // backup might be a DIFFERENT profile than the one currently open here
+    // (bringing a profile over from another machine), so "go pick it from
+    // the profile list" is the right next step either way, not assuming
+    // it should silently become the active one.
+    setTimeout(() => { window.location.href = '/profiles'; }, 1200);
+  } catch (e) {
+    settingsBackupStatus.textContent = "Could not import that file - make sure it's a LanguLearn backup zip.";
+    settingsImportProfileBtn.disabled = false;
+  }
+});
+
+settingsAutoBackupToggle.addEventListener('change', async () => {
+  const auto_backup_enabled = settingsAutoBackupToggle.checked;
+  settingsAutoBackupInterval.disabled = !auto_backup_enabled;
+  currentProfile.auto_backup_enabled = auto_backup_enabled;
+  fetch(`/api/profiles/${currentProfile.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auto_backup_enabled }),
+  }).catch(() => {});
+});
+
+settingsAutoBackupInterval.addEventListener('change', async () => {
+  const auto_backup_interval_days = Number(settingsAutoBackupInterval.value);
+  currentProfile.auto_backup_interval_days = auto_backup_interval_days;
+  fetch(`/api/profiles/${currentProfile.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auto_backup_interval_days }),
+  }).catch(() => {});
+});
+
+settingsOpenBackupsFolderBtn.addEventListener('click', () => {
+  fetch('/api/open-backups-folder', { method: 'POST' }).catch(() => {});
+});
 
 // --- Data controls: delete profile ---
 
@@ -636,6 +774,7 @@ function renderAboutPane(info) {
 function renderUpdatesPane() {
   const app = latestUpdateStatus && latestUpdateStatus.app;
   const assets = latestUpdateStatus && latestUpdateStatus.assets;
+  const marketing = latestUpdateStatus && latestUpdateStatus.marketing;
 
   settingsAppVersionText.textContent = app
     ? (app.update_available
@@ -645,6 +784,10 @@ function renderUpdatesPane() {
 
   settingsAssetsVersionText.textContent = assets
     ? (assets.update_available ? 'Update available' : 'Up to date')
+    : 'Could not check.';
+
+  settingsMarketingVersionText.textContent = marketing
+    ? (marketing.update_available ? 'Update available' : 'Up to date')
     : 'Could not check.';
 
   const info = describeUpdate(latestUpdateStatus);
@@ -659,6 +802,7 @@ function renderUpdatesPane() {
 async function populateUpdatesPane() {
   settingsAppVersionText.textContent = 'Checking...';
   settingsAssetsVersionText.textContent = 'Checking...';
+  settingsMarketingVersionText.textContent = 'Checking...';
   settingsUpdateActionBtn.hidden = true;
   settingsUpdateStatus.textContent = '';
   await loadUpdateStatus(false); // shares the cache - opening this tab right after the silent on-load check won't re-hit PyPI
@@ -669,6 +813,7 @@ settingsCheckUpdatesBtn.addEventListener('click', async () => {
   settingsCheckUpdatesBtn.disabled = true;
   settingsAppVersionText.textContent = 'Checking...';
   settingsAssetsVersionText.textContent = 'Checking...';
+  settingsMarketingVersionText.textContent = 'Checking...';
   await loadUpdateStatus(true); // force - bypasses the cache, this is the explicit manual check
   renderUpdatesPane();
   settingsCheckUpdatesBtn.disabled = false;
@@ -678,7 +823,5 @@ settingsUpdateActionBtn.addEventListener('click', () => {
   runUpdateAction((text) => { settingsUpdateStatus.textContent = text; }, settingsUpdateActionBtn);
 });
 
-// If a profile is already loaded by the time this script runs (unlikely,
-// since init.js's fetch is async, but harmless either way), reflect it
-// immediately rather than waiting for the next applyProfile() call.
-refreshSettingsAvatar();
+// profileMenu.js's initProfileMenu() owns the initial paint of the
+// profile-menu button/dropdown - nothing to do here on load.

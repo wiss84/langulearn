@@ -32,10 +32,13 @@ const sessionStatusText = document.getElementById('sessionStatusText');
 // (profile/conversation identity and the live socket - referenced across
 // profiles.js, conversations.js, audio.js, websocket.js, and, via
 // window.currentVoiceName, avatarDrawer.js)
-
-let currentProfile = null;
-let conversationsCache = [];
-let currentConversationId = null;
+//
+// currentProfile/conversationsCache/currentConversationId are declared in
+// profileMenu.js instead of here now (loaded globally in index.html,
+// before this file) - the top-bar profile menu needs currentProfile on
+// every page, not just this one. They're the same shared top-level
+// bindings either way; this file just uses them rather than declaring
+// them.
 var currentVoiceName = null;
 var currentVoiceAlias = null;
 

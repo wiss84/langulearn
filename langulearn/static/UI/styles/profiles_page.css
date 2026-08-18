@@ -120,6 +120,18 @@
   font-weight: 400;
 }
 
+/* Sits between the Add-profile and Import-profile tiles (see
+   profilesPage.js) - height matches .profile-tile-avatar so it lines up
+   with the circles rather than the tiles' full column height (which
+   includes the name label below). */
+.profile-tile-or {
+  display: flex;
+  align-items: center;
+  height: 84px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 #profilesEmptyHint {
   margin-top: 28px;
   color: var(--text-muted);

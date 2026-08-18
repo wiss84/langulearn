@@ -21,11 +21,14 @@
 }
 
 /* Light theme - same warm off-white the header comment always promised,
-   toggled via the sun/moon button in the shared top bar (scripts/theme.js
-   flips this attribute; the no-FOUC snippet in index.html's <head> sets
-   it from localStorage before first paint). Same accent color in both
-   themes - it's the one deliberate brand color, not something that
-   should shift with light/dark. */
+   selected via the System/Light/Dark segmented control in the Settings
+   modal's General tab (scripts/theme.js's setThemeMode flips this
+   attribute; the no-FOUC snippet in index.html's <head> sets it from
+   localStorage before first paint). Light is the fallback when nothing's
+   been chosen yet, not System - a deliberate default, not "whatever the
+   OS happens to be set to". Same accent color in both themes - it's the
+   one deliberate brand color, not something that should shift with
+   light/dark. */
 html[data-theme="light"] {
   --bg: #f5f1e8;
   --panel: #ffffff;
@@ -37,6 +40,40 @@ html[data-theme="light"] {
   --accent-hover: #a83431;
   --accent-soft: rgba(193, 64, 61, 0.10);
   --ok: #3f8a5c;
+}
+
+/* System theme - deliberately a plain, neutral white/dark rather than a
+   copy of the Light theme's warm off-white tokens above, so picking
+   "System" looks visibly different from picking "Light" even when the OS
+   happens to be in light mode. Tracks the OS preference live via the
+   media query below - unlike the other two themes, there's no JS
+   resolution step for this one (see theme.js), the browser just repaints
+   it on its own if the OS preference changes while the app is open. */
+html[data-theme="system"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-raised: #f1f1f1;
+  --border: #d9d9d9;
+  --text: #1f1f1f;
+  --text-muted: #5f6368;
+  --accent: #c1403d;
+  --accent-hover: #a83431;
+  --accent-soft: rgba(193, 64, 61, 0.10);
+  --ok: #3f8a5c;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --bg: #141821;
+    --panel: #1b212c;
+    --panel-raised: #222a37;
+    --border: #2a3140;
+    --text: #ede9e3;
+    --text-muted: #8b93a3;
+    --accent: #c1403d;
+    --accent-hover: #d64f4c;
+    --accent-soft: rgba(193, 64, 61, 0.16);
+    --ok: #7fa98e;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -66,6 +103,7 @@ html, body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-x: hidden;
 }
 #pageBody > #body,
 #pageBody > #landingWrap,

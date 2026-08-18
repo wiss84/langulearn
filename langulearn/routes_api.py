@@ -10,14 +10,15 @@ import subprocess
 import sys
 import time
 import uuid
+import zipfile
 from importlib import metadata as importlib_metadata
 from urllib.parse import quote
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
-from . import memory, scenarios, speech_detection, updater
+from . import backup, memory, quizzes, scenarios, speech_detection, stats, updater
 from .constants import (
     APP_VERSION,
     ASSETS_DIR,
@@ -122,6 +123,24 @@ def open_data_folder():
     return {"opened": True, "path": path}
 
 
+@router.post("/api/open-backups-folder")
+def open_backups_folder():
+    """Opens the automatic-backup destination (see backup.AUTO_BACKUP_DIR)
+    in the OS file explorer - same pattern as open_data_folder above, the
+    Settings modal's Backup section's way of showing where auto-backups
+    land without a full custom save-location picker.
+    """
+    backup.AUTO_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    path = str(backup.AUTO_BACKUP_DIR)
+    if sys.platform == "win32":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", path], check=False)
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+    return {"opened": True, "path": path}
+
+
 # --- Update check / apply (top-bar notification, profile dropdown,
 # Settings > Updates tab - see update.js and settings.js) ---
 
@@ -147,7 +166,8 @@ async def get_update_status(force: bool = False):
 
     app_info = await asyncio.to_thread(updater.check_app_update)
     assets_info = updater.check_assets_update()  # local file comparison only, no network - fine directly on the event loop
-    data = {"app": app_info, "assets": assets_info}
+    marketing_info = updater.check_marketing_assets_update()  # same - local only
+    data = {"app": app_info, "assets": assets_info, "marketing": marketing_info}
     _update_status_cache["ts"] = now
     _update_status_cache["data"] = data
     return data
@@ -180,6 +200,35 @@ async def update_assets_endpoint():
         raise HTTPException(500, str(e))
     _update_status_cache["data"] = None
     return {"success": True}
+
+
+@router.post("/api/update-marketing-assets")
+async def update_marketing_assets_endpoint():
+    """Re-downloads the landing-page video/gif bundle. Unlike
+    update_assets_endpoint above, the frontend DOES follow this with a
+    relaunch (see update.js's describeUpdate) even though nothing here
+    technically requires one either - /landing is only ever organically
+    visited right after each app launch, so relaunching is the only way
+    the refresh actually gets seen rather than sitting silently correct on
+    disk until the person happens to click Home again.
+    """
+    try:
+        await asyncio.to_thread(updater.download_and_extract_marketing_assets, True, None)
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+    _update_status_cache["data"] = None
+    return {"success": True}
+
+
+@router.get("/api/download-progress")
+async def download_progress_endpoint():
+    """Polled by the frontend (see update.js) while any of the three
+    endpoints above is in flight, to drive a live progress bar instead of
+    a static "Downloading..." string for however long a large asset zip
+    takes - see updater.get_download_progress's own docstring. Local dict
+    read, no thread needed.
+    """
+    return updater.get_download_progress()
 
 
 @router.post("/api/restart-app")
@@ -260,6 +309,21 @@ async def create_profile(request: Request):
         #  "calibrated": bool, "tested": bool}. Per-mic so switching mics
         # never overwrites another mic's calibration - see handsfreeSetup.js.
         "mic_calibrations": {},
+        # Stats tab bookkeeping (see stats.py) - not user-editable, updated
+        # server-side only (live_session.py accumulates total_seconds_studied
+        # and last_active_date/current_streak once per Live session;
+        # stats.get_new_milestones appends to seen_milestones as each tier
+        # is first surfaced in the notification bell).
+        "total_seconds_studied": 0,
+        "last_active_date": None,
+        "current_streak": 0,
+        "seen_milestones": [],
+        # Backup (see backup.py) - auto_backup_interval_days only takes
+        # effect once auto_backup_enabled is true; last_auto_backup_at is
+        # set by maybe_run_auto_backup itself, never directly by the user.
+        "auto_backup_enabled": False,
+        "auto_backup_interval_days": 7,
+        "last_auto_backup_at": None,
     }
     profiles = load_profiles()
     profiles.append(profile)
@@ -293,6 +357,98 @@ def remove_profile(profile_id: str):
         memory.delete_conversation(conv["id"])
     speech_detection.delete_enrollment(profile_id)
     return {"deleted": True}
+
+
+# --- Profile backup (export/import) - see backup.py for the actual zip
+# packaging; these are thin HTTP wrappers around it. Reached only through
+# the running app's own UI (Settings modal's Data controls tab), never a
+# standalone CLI path - init_db() is guaranteed to have already run by the
+# time any of these can be reached, since it's called unconditionally from
+# main.py's lifespan hook on every server start. ---
+
+
+@router.get("/api/profiles/{profile_id}/export")
+def export_profile_endpoint(profile_id: str):
+    """Downloads a full backup zip for one profile - profile identity,
+    every conversation/quiz session under it, and its voice enrollment.
+    Same Content-Disposition pattern as the notes docx export just below
+    (ASCII fallback + percent-encoded filename* - see that endpoint's own
+    comment for why a plain UTF-8 filename can't go straight into an HTTP
+    header).
+    """
+    profile = get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    zip_bytes = backup.build_profile_backup_zip(profile_id)
+    stamp = time.strftime("%Y%m%d")
+    display_name = f"LanguLearn-{profile.get('name') or 'profile'}-{stamp}.zip"
+    ascii_fallback = re.sub(r"[^\x20-\x7e]", "_", display_name)
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(display_name)}",
+    }
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+
+
+@router.post("/api/profiles/import")
+async def import_profile_endpoint(file: UploadFile = File(...)):
+    """Restores a profile from a backup zip (see export_profile_endpoint
+    above / backup.py). If a profile with the same id already exists
+    locally, it's fully replaced - not merged - per backup.py's own
+    documented behavior.
+    """
+    zip_bytes = await file.read()
+    try:
+        profile_id = backup.import_profile_backup_zip(zip_bytes)
+    except (KeyError, ValueError, zipfile.BadZipFile) as e:
+        raise HTTPException(400, f"Could not read this backup file: {type(e).__name__}: {e}")
+    profile = get_profile_by_id(profile_id)
+    return {"imported": True, "profile": profile}
+
+
+@router.post("/api/profiles/{profile_id}/check-auto-backup")
+def check_auto_backup_endpoint(profile_id: str):
+    """Called once per app session (see init.js) - runs
+    backup.maybe_run_auto_backup, which itself no-ops unless this profile
+    has auto-backup on AND its configured interval has actually elapsed.
+    """
+    if get_profile_by_id(profile_id) is None:
+        raise HTTPException(404, "Profile not found")
+    ran = backup.maybe_run_auto_backup(profile_id)
+    return {"ran": ran}
+
+
+@router.get("/api/profiles/{profile_id}/stats")
+def get_profile_stats_endpoint(profile_id: str):
+    """Backs the Settings modal's Stats tab (see statsPane.js) - per-
+    language breakdown plus profile-wide totals (see stats.py), with the
+    profile fields it doesn't otherwise expose (total_seconds_studied/
+    current_streak/last_active_date) folded straight into the same
+    response so the frontend only needs one fetch.
+    """
+    profile = get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    data = stats.get_profile_stats(profile_id)
+    return {
+        **data,
+        "total_seconds_studied": profile.get("total_seconds_studied") or 0,
+        "current_streak": profile.get("current_streak") or 0,
+        "last_active_date": profile.get("last_active_date"),
+    }
+
+
+@router.get("/api/profiles/{profile_id}/milestone-status")
+def get_milestone_status_endpoint(profile_id: str):
+    """Backs the top-bar notification bell's milestone rows (see
+    update.js) - every vocab/streak tier crossed since this was last
+    checked. Marks them seen as a side effect of this GET itself (see
+    stats.get_new_milestones's own docstring for why), so this returns
+    the same newly-crossed set at most once.
+    """
+    profile = get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    return {"new_milestones": stats.get_new_milestones(profile_id, profile)}
 
 
 @router.get("/api/profiles/{profile_id}/mic-status")
@@ -588,6 +744,73 @@ def export_conversation_notes_docx(profile_id: str, conversation_id: str):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers=headers,
     )
+
+
+# --- Test Yourself ("quiz mode") - a deterministic replay of a
+# conversation's already-answered quiz items, no tutor/model involvement.
+# See quizzes.get_reviewable_quiz_items for the data-source/dedup logic;
+# these endpoints are thin wrappers around it plus the same start/answer/
+# finalize quiz-session functions the live tutor's start_quiz tool already
+# uses (see live_session.py), so a review run is a genuine quiz_sessions
+# row like any other rather than a parallel, untracked path.
+
+_REVIEWABLE_QUIZ_RANGES = ("all", "today", "week", "month")
+
+
+def _get_owned_conversation(profile_id: str, conversation_id: str) -> dict:
+    conv = memory.get_conversation(conversation_id)
+    if conv is None or conv["profile_id"] != profile_id:
+        raise HTTPException(404, "Conversation not found")
+    return conv
+
+
+@router.get("/api/profiles/{profile_id}/conversations/{conversation_id}/reviewable-quiz")
+def get_reviewable_quiz_endpoint(profile_id: str, conversation_id: str, range: str = "all"):
+    _get_owned_conversation(profile_id, conversation_id)
+    if range not in _REVIEWABLE_QUIZ_RANGES:
+        raise HTTPException(400, f"range must be one of: {', '.join(_REVIEWABLE_QUIZ_RANGES)}")
+    items = quizzes.get_reviewable_quiz_items(conversation_id, range)
+    return {"items": items, "range": range}
+
+
+@router.post("/api/profiles/{profile_id}/conversations/{conversation_id}/reviewable-quiz/start")
+async def start_reviewable_quiz_endpoint(profile_id: str, conversation_id: str, request: Request):
+    _get_owned_conversation(profile_id, conversation_id)
+    payload = await request.json()
+    items = payload.get("items") or []
+    if not items:
+        raise HTTPException(400, "items is required and must be non-empty.")
+    # The client sends back the exact (already deduplicated, already
+    # shuffled) set it fetched and is about to show - this session's
+    # payload should reflect what the student actually sees, the same way
+    # a tutor-generated session's payload does.
+    quiz_id = quizzes.start_quiz_session(conversation_id, "review", {"items": items})
+    return {"quiz_id": quiz_id}
+
+
+@router.post("/api/profiles/{profile_id}/conversations/{conversation_id}/reviewable-quiz/{quiz_id}/answer")
+async def answer_reviewable_quiz_endpoint(profile_id: str, conversation_id: str, quiz_id: str, request: Request):
+    _get_owned_conversation(profile_id, conversation_id)
+    payload = await request.json()
+    quizzes.record_item_answer(
+        quiz_id,
+        item_index=payload["item_index"],
+        target_term=payload["target_term"],
+        prompt_or_text=payload["prompt_or_text"],
+        correct_answer=payload["correct_answer"],
+        student_answer=payload.get("student_answer"),
+        is_correct=bool(payload["is_correct"]),
+    )
+    return {"recorded": True}
+
+
+@router.post("/api/profiles/{profile_id}/conversations/{conversation_id}/reviewable-quiz/{quiz_id}/finish")
+def finish_reviewable_quiz_endpoint(profile_id: str, conversation_id: str, quiz_id: str, status: str = "completed"):
+    _get_owned_conversation(profile_id, conversation_id)
+    if status not in ("completed", "skipped"):
+        raise HTTPException(400, "status must be 'completed' or 'skipped'.")
+    quizzes.finalize_quiz_session(quiz_id, status=status)
+    return {"finalized": True, "status": status}
 
 
 @router.put("/api/profiles/{profile_id}/active-conversation")

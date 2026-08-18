@@ -49,6 +49,7 @@ dependencies = [
     "scipy",
     "rich",
     "markdown",
+    "python-multipart",
     "pywin32; sys_platform == 'win32'",
 ]
 

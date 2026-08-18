@@ -1,0 +1,120 @@
+/* --- Test Yourself ("quiz mode") page - a standalone full-page replay of
+   a conversation's already-answered quiz items (see quizMode.js). Reuses
+   quiz_drawer.css's slide/choice/dragdrop/summary classes throughout for
+   visual consistency with the learning page's quiz drawer; this file only
+   covers the page-level chrome that's new here - the centered card, the
+   intro screen, and the full-page (not fixed-drawer) layout of the
+   in-progress session. */
+
+#quizModeWrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.quiz-mode-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 640px;
+  margin: 24px 0;
+}
+
+.quiz-mode-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* --- Intro screen --- */
+
+#quizModeIntroHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+/* Overrides sidebar.css's generic `select { flex: 1 }` - that rule
+   assumes a select is the dominant element in its row (e.g. the mic
+   picker), but here it sits in a header next to a title and shouldn't
+   stretch to fill the row - same reasoning as whatsNewVersionSelect's
+   equivalent placement on the What's New page. */
+#quizModeRangeSelect {
+  flex: 0 0 auto;
+  width: auto;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  background: var(--panel-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+#quizModeLoading {
+  text-align: center;
+  margin: 0;
+}
+
+#quizModeEmptyState .field-hint,
+#quizModeReadyState .field-hint {
+  text-align: center;
+  line-height: 1.5;
+}
+
+#quizModeCount {
+  text-align: center;
+  margin: 10px 0 0;
+  font-weight: 500;
+}
+
+/* Bottom-right Close, on every quiz-mode screen (intro - regardless of
+   which range is selected or whether it's empty/ready - and the
+   in-progress session) rather than a top-bar icon, matching the What's
+   New page's own footer-close treatment. */
+.quiz-mode-footer-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* --- In-progress session: same section shape as #quizDrawerHeader/Body/
+   Footer (quiz_drawer.css), just not a fixed-position side drawer here -
+   this page has no avatar view or #main to make room for. --- */
+
+#quizModeHeader {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+#quizModeBody {
+  min-height: 160px;
+}
+
+#quizModeFooter {
+  display: flex;
+  gap: 10px;
+  padding-top: 18px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+#quizModeFooter .primary-btn {
+  flex: 1;
+}
+#quizModeFooter .primary-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Redo sits alongside Done only on the summary slide (quizMode.js toggles
+   its display) - narrower than the primary action next to it, same
+   proportion as a secondary action anywhere else in the app. */
+#quizModeRedoBtn {
+  flex: 0 0 auto;
+}

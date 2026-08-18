@@ -33,7 +33,7 @@
   font-weight: 500;
 }
 
-.conv-rename-btn, .conv-delete-btn, .conv-notes-btn {
+.conv-rename-btn, .conv-delete-btn, .conv-notes-btn, .conv-quiz-btn {
   flex: 0 0 30px;
   border: 1px solid var(--border);
   border-left: none;
@@ -46,7 +46,7 @@
   justify-content: center;
   transition: background 0.2s ease, color 0.2s ease;
 }
-.conv-rename-btn:hover, .conv-notes-btn:hover { color: var(--text); }
+.conv-rename-btn:hover, .conv-notes-btn:hover, .conv-quiz-btn:hover { color: var(--text); }
 .conv-delete-btn {
   border-radius: 0 8px 8px 0;
   color: #e53e3e;

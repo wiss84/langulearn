@@ -12,6 +12,16 @@ let ready = false;
 let currentAudioEl = null;
 let currentSourceNode = null;
 
+// Exported so external tooling (see static/UI/avatar_test/speaking_loop.html,
+// a recording harness built to capture this exact loop for the marketing
+// site's tutor cards) can reach the underlying TalkingHead instance - its
+// renderer, in particular, for the same alpha-canvas/background fix
+// dance_loop.html needed (see that file's own comment on the same issue).
+// Live ES module binding - always reflects the current value even though
+// it's reassigned inside initAvatarHead() below, not just its value at
+// import time.
+export { head };
+
 // Known tuning item: mouth movement reads as subtle/laggy/out-of-sync,
 // which turned out to be less about amplitude than about SPEED. setValue()
 // (what HeadAudio drives) runs through TalkingHead's exponential smoothing
@@ -83,6 +93,29 @@ function stubMissingBlendShapes() {
   // for a VRoid avatar and crashes idle animation (Math.random() * 0).
 }
 
+// TalkingHead's vendored source gives each mood its own infinite idle
+// pose-cycling animation, installed into head.animQueue by showAvatar()'s
+// own internal setMood() call - independent of, and running concurrently
+// with, any pose set via setPoseFromTemplate()/playGesture(). Left alone,
+// it kept firing its own random pose picks (on a 5-30s timer - see
+// animMoods.neutral.anims in the vendored talkinghead.mjs) in between
+// playPoseShowcase()'s own deliberate, timed pose changes below - visible
+// as extra poses that were never in POSE_SHOWCASE_MALE/FEMALE, most
+// noticeably for males (neutral mood's pose template has an 'M'-only
+// branch that adds 'wide' as an extra option on top of the usual
+// side/hip/straight choices). avatarDrawer.js hit the exact same
+// interference on the learning page's fullscreen avatar and fixed it by
+// replacing the animation with a restricted safe-pose version, since that
+// page has nothing else deliberately driving pose changes; here,
+// playPoseShowcase already owns pose changes entirely on its own schedule,
+// so the fix is simpler - just remove TalkingHead's own version outright
+// rather than replacing it with anything.
+function stripAutoPoseLoop() {
+  if (!head) return;
+  const i = head.animQueue.findIndex((x) => x.template.name === 'pose');
+  if (i !== -1) head.animQueue.splice(i, 1);
+}
+
 export async function initAvatarHead(containerEl) {
   if (ready) return;
   head = new TalkingHead(containerEl, {
@@ -124,6 +157,20 @@ export async function initAvatarHead(containerEl) {
 export async function loadAvatarAndPlaySample(voiceName, onProgress) {
   if (!ready) throw new Error('Avatar preview not initialized yet.');
 
+  // showAvatar() below fully loads and swaps in the NEW mesh before its
+  // own promise resolves (glb fetch+parse happens first, then the scene
+  // swap) - but the PREVIOUS avatar's playPoseShowcase() timeout chain
+  // isn't invalidated until playPoseShowcase() is called again for this
+  // new avatar, which only happens after this whole function returns.
+  // That left a window - as long as the glb takes to load - where the new
+  // avatar was already visible but a still-pending step() from the OLD
+  // avatar's chain could fire, calling setPoseFromTemplate() with the old
+  // avatar's gender-list pose but landing on the new avatar's skeleton
+  // (setPoseFromTemplate just acts on whatever's currently loaded - it has
+  // no idea which avatar "owns" the call). Invalidating right here, before
+  // the new glb even starts loading, closes that window entirely.
+  stopPoseShowcase();
+
   if (currentAudioEl) {
     currentAudioEl.pause();
     currentAudioEl.remove();
@@ -137,6 +184,30 @@ export async function loadAvatarAndPlaySample(voiceName, onProgress) {
     }
   });
   stubMissingBlendShapes();
+  stripAutoPoseLoop(); // showAvatar() ends by calling setMood() itself, which installs the mood's own (unsafe) pose loop - strip it immediately, before playGreeting()/playPoseShowcase() ever get a chance to compete with it
+
+  // TalkingHead's `poseBase` isn't recreated per avatar - it's one object
+  // living on the shared `head` instance for its whole lifetime, and
+  // updatePoseBase() mutates it in place every frame via Quaternion.slerp()
+  // (which writes its result back into the quaternion it's called on), so
+  // by the time a pose transition finishes, poseBase has been dragged into
+  // exactly matching it - it's effectively "whatever pose this avatar was
+  // last actually in", persisted across avatar swaps. showAvatar() (just
+  // above) copies that stale poseBase straight into the NEW avatar's
+  // skeleton, so it visually snaps into the PREVIOUS avatar's ending pose
+  // the instant it loads, and stays there until playPoseShowcase()'s own
+  // delay+transition corrects it seconds later - a male avatar ending on
+  // 'sitting' left the very next avatar (even a female one that never uses
+  // 'sitting' itself) starting there too. 'straight' exists in both
+  // POSE_SHOWCASE_MALE and POSE_SHOWCASE_FEMALE, so it's a safe universal
+  // reset regardless of this avatar's gender (not known at this point in
+  // the call - only the caller's later playPoseShowcase(gender) call knows
+  // that). ms=50 rather than 0: setPoseFromTemplate's transition math
+  // divides by this value, and an edge case where the very first frame's
+  // timestamp exactly matches the transition's own start timestamp would
+  // divide by zero; 50ms is visually instant but leaves enough headroom
+  // to never hit that.
+  head.setPoseFromTemplate(head.poseTemplates['straight'], 50);
 
   if (head.audioCtx.state === 'suspended') {
     await head.audioCtx.resume();
