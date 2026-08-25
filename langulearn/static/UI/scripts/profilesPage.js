@@ -60,6 +60,18 @@ function buildProfileTile(profile, activeId) {
     await deleteProfileApi(profile.id);
     if (localStorage.getItem(ACTIVE_PROFILE_KEY) === profile.id) {
       localStorage.removeItem(ACTIVE_PROFILE_KEY);
+      // The Settings modal's own delete-profile flow (settings.js) gets
+      // this for free by navigating to /profiles afterward, which
+      // reruns profileMenu.js's initProfileMenu() from scratch. This
+      // button deletes without leaving the page, so nothing else would
+      // otherwise clear the top bar's in-memory currentProfile/dropdown -
+      // it'd keep showing the just-deleted profile as logged in, and
+      // Settings would still open for it (backed by a 404'ing profile_id)
+      // until the next full navigation.
+      if (currentProfile && currentProfile.id === profile.id) {
+        currentProfile = null;
+        refreshProfileMenuButton();
+      }
     }
     render();
   });

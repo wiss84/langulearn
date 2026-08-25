@@ -41,7 +41,8 @@ from .constants import DEFAULT_DIFFICULTY
 # setting/persona text, not the tutor's name/identity line, since that's
 # identical regardless of scenario.
 PERSONA_IDENTITY = (
-    "\n\nYou are {tutor_name}, an {target_language} tutor. Introduce yourself as {tutor_name} the first time you meet {name}."
+    "\n\nYou are {tutor_name}, an {target_language} tutor. You must explicitly intruduce yourself as {tutor_name} an AI tutor, the first time you meet {name}.\n"
+    "Address user by their first name naturally during the conversation."
 )
 
 # The single # CONVERSATIONAL RULES section for the whole system
@@ -151,9 +152,11 @@ GUARDRAILS = (
     "- Never mention or narrate the set_mood call.\n"
     "- If you receive a quiz-results summary as input, react to it "
     "naturally like a spoken answer - never read it aloud verbatim."
-    "Never include placeholders like {{0}}, {{1}}, etc., within the quiz question text itself. "
+    "- Never include placeholders like {{0}}, {{1}}, etc., within the quiz question text itself. "
     "Keep the question focused on the meaning, translation, or pronunciation of the word, or phrase "
-    "without revealing how it's spelled or represented graphically."
+    "without revealing how it's spelled or represented graphically.\n"
+    "NEVER start a quiz, and ask the user to repeat a word or a phrase in the same conversation turn, "
+    "Its either start a quiz, or ask the user to repeat a something, cant be both at the same time."
 )
 
 

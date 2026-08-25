@@ -12,6 +12,7 @@ import time
 import uuid
 import zipfile
 from importlib import metadata as importlib_metadata
+from pathlib import Path
 from urllib.parse import quote
 
 import numpy as np
@@ -107,20 +108,74 @@ def get_available_avatars():
     return {"available": available}
 
 
+def _resolve_packaged_open_target(path: Path) -> tuple[str, dict]:
+    """See this function's previous docstring for the full redirection
+    explanation. Returns (resolved_path, debug) - debug records exactly
+    which step succeeded/failed, since a silent fallback here gives no
+    way to tell "not a packaged build" apart from "should have worked but
+    didn't" from the outside.
+    """
+    debug = {"platform": sys.platform, "original_path": str(path)}
+    if sys.platform != "win32":
+        debug["result"] = "not windows"
+        return str(path), debug
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        length = ctypes.c_uint32(0)
+        first_call_result = kernel32.GetCurrentPackageFamilyName(ctypes.byref(length), None)
+        debug["first_call_result"] = first_call_result
+        debug["first_call_length"] = length.value
+        if length.value == 0:
+            debug["result"] = "not a packaged process (length 0 on first call)"
+            return str(path), debug
+        buf = ctypes.create_unicode_buffer(length.value)
+        second_call_result = kernel32.GetCurrentPackageFamilyName(ctypes.byref(length), buf)
+        debug["second_call_result"] = second_call_result
+        if second_call_result != 0:
+            debug["result"] = f"second call failed, code {second_call_result}"
+            return str(path), debug
+        package_family_name = buf.value
+        debug["package_family_name"] = package_family_name
+    except (AttributeError, OSError) as e:
+        debug["result"] = f"exception calling GetCurrentPackageFamilyName: {type(e).__name__}: {e}"
+        return str(path), debug
+
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    debug["local_appdata"] = local_appdata
+    if not local_appdata:
+        debug["result"] = "no LOCALAPPDATA env var"
+        return str(path), debug
+    try:
+        relative = path.relative_to(local_appdata)
+    except ValueError as e:
+        debug["result"] = f"path not under LOCALAPPDATA: {e}"
+        return str(path), debug
+    real_path = Path(local_appdata) / "Packages" / package_family_name / "LocalCache" / "Local" / relative
+    debug["computed_real_path"] = str(real_path)
+    debug["computed_real_path_is_dir"] = real_path.is_dir()
+    if real_path.is_dir():
+        debug["result"] = "resolved successfully"
+        return str(real_path), debug
+    debug["result"] = "computed real path doesn't exist - falling back to original"
+    return str(path), debug
+
+
 @router.post("/api/open-data-folder")
 def open_data_folder():
     """Opens the app's data directory (profiles, conversations, voice
     enrollment, downloaded assets) in the OS file explorer.
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path = str(DATA_DIR)
+    path, debug = _resolve_packaged_open_target(DATA_DIR)
     if sys.platform == "win32":
         os.startfile(path)
     elif sys.platform == "darwin":
         subprocess.run(["open", path], check=False)
     else:
         subprocess.run(["xdg-open", path], check=False)
-    return {"opened": True, "path": path}
+    return {"opened": True, "path": path, "debug": debug}
 
 
 @router.post("/api/open-backups-folder")
@@ -131,14 +186,14 @@ def open_backups_folder():
     land without a full custom save-location picker.
     """
     backup.AUTO_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    path = str(backup.AUTO_BACKUP_DIR)
+    path, debug = _resolve_packaged_open_target(backup.AUTO_BACKUP_DIR)
     if sys.platform == "win32":
         os.startfile(path)
     elif sys.platform == "darwin":
         subprocess.run(["open", path], check=False)
     else:
         subprocess.run(["xdg-open", path], check=False)
-    return {"opened": True, "path": path}
+    return {"opened": True, "path": path, "debug": debug}
 
 
 # --- Update check / apply (top-bar notification, profile dropdown,

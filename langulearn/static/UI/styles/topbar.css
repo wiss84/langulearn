@@ -309,3 +309,42 @@
   background: var(--accent);
   transition: width 0.25s ease;
 }
+
+/* --- First-run asset download overlay - see update.js's
+   maybeStartFirstRunSetup. Same overlay chrome as #updateDetailOverlay
+   above, but no close button and a higher z-index, since this one must
+   sit above literally everything else (including the settings modal, if
+   somehow already open) and can't be dismissed. --- */
+
+#firstRunOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.75);
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+}
+#firstRunOverlay.visible { display: flex; }
+
+#firstRunModal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  width: 380px;
+  max-width: 90vw;
+  text-align: center;
+}
+#firstRunModal h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+#firstRunModal .update-progress-wrap {
+  margin-top: 4px;
+}
+#firstRunRetryBtn {
+  margin-top: 14px;
+  width: 100%;
+}

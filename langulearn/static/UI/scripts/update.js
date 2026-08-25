@@ -39,6 +39,12 @@ const updateDetailSkipBtn = document.getElementById('updateDetailSkipBtn');
 const updateDetailStatus = document.getElementById('updateDetailStatus');
 const closeUpdateDetailBtn = document.getElementById('closeUpdateDetailBtn');
 
+const firstRunOverlay = document.getElementById('firstRunOverlay');
+const firstRunProgressWrap = document.getElementById('firstRunProgressWrap');
+const firstRunProgressFill = document.getElementById('firstRunProgressFill');
+const firstRunStatus = document.getElementById('firstRunStatus');
+const firstRunRetryBtn = document.getElementById('firstRunRetryBtn');
+
 let latestUpdateStatus = null; // {app: {current, latest, update_available}, assets: {current, latest, update_available}, marketing: {current, latest, update_available}}
 let latestWhatsNewStatus = null; // {available, version}
 let latestMilestoneStatus = null; // {new_milestones: [{id, message}, ...]} - profile-scoped, see loadMilestoneStatus
@@ -354,6 +360,56 @@ async function loadUpdateStatus(force) {
   return latestUpdateStatus;
 }
 
+// True only on a genuinely fresh install with no avatar/voice/photo bundle
+// downloaded yet - assets.current is null specifically when no local
+// version marker exists at all (see updater.check_assets_update), which
+// is a stronger condition than assets.update_available (that's also true
+// for an ordinary stale-but-present bundle, which should stay a
+// dismissible bell notification, not a forced blocking download). The EXE
+// installer downloads this bundle during setup itself, so this only ever
+// fires for an MSIX/Store install, which can't - but nothing here checks
+// install method directly, it just reacts to the bundle genuinely being
+// absent regardless of why.
+function isFirstRunAssetsMissing(status) {
+  return !!(status && status.assets && status.assets.current === null);
+}
+
+let firstRunSetupStarted = false;
+
+// Runs the exact same download steps as a manual "Update & Relaunch"
+// (buildUpdateSteps/runUpdateAction above) - including any pending app or
+// marketing update that happens to also be available - but triggered
+// automatically with no click, behind a full-screen non-dismissible
+// overlay instead of the bell's small modal. Ends in the same relaunch
+// either way, so the next launch lands back here with assets.current no
+// longer null and this becomes a no-op for good.
+async function maybeStartFirstRunSetup() {
+  if (firstRunSetupStarted || !isFirstRunAssetsMissing(latestUpdateStatus)) return;
+  firstRunSetupStarted = true;
+
+  firstRunRetryBtn.hidden = true;
+  firstRunStatus.textContent = '';
+  firstRunProgressWrap.hidden = true;
+  firstRunProgressFill.style.width = '0%';
+  firstRunOverlay.classList.add('visible');
+  void firstRunOverlay.offsetHeight; // forces a repaint - see openUpdateDetail above for the same pattern
+
+  await runUpdateAction(
+    (text) => { firstRunStatus.textContent = text; },
+    firstRunRetryBtn,
+    (pct) => {
+      firstRunProgressWrap.hidden = pct == null;
+      if (pct != null) firstRunProgressFill.style.width = `${pct}%`;
+    }
+  );
+  // Only reachable on failure - a success ends in a relaunch that tears
+  // this whole page down before runUpdateAction's promise resolves.
+  firstRunSetupStarted = false;
+  firstRunRetryBtn.hidden = false;
+}
+
+firstRunRetryBtn.addEventListener('click', maybeStartFirstRunSetup);
+
 async function loadWhatsNewStatus() {
   try {
     const res = await fetch('/api/whats-new-status');
@@ -416,6 +472,6 @@ updateDetailActionBtn.addEventListener('click', () => {
   );
 });
 
-loadUpdateStatus(false);
+loadUpdateStatus(false).then(maybeStartFirstRunSetup);
 loadWhatsNewStatus();
 loadMilestoneStatus();

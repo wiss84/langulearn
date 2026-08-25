@@ -55,7 +55,7 @@ const settingsRedoHandsfreeBtn = document.getElementById('settingsRedoHandsfreeB
 const settingsMicStatusList = document.getElementById('settingsMicStatusList');
 
 // Learning
-const settingsViewNotesBtn = document.getElementById('settingsViewNotesBtn');
+const settingsNotesList = document.getElementById('settingsNotesList');
 const settingsDifficultyToggle = document.getElementById('settingsDifficultyToggle');
 
 // Data controls
@@ -429,12 +429,70 @@ function currentConversation() {
   return conversationsCache.find((c) => c.id === currentConversationId);
 }
 
+// One row per language/conversation, not a single button - a profile can
+// have several, and there's no one "active" conversation to default to
+// outside the learning page (currentConversationId only gets populated
+// there - see this file's header comment). Fetches its own copy of the
+// conversation list for the same reason the Data controls export list
+// just below does (see that section's own comment) - works from any page
+// the modal can be opened from.
+async function renderNotesLanguageList() {
+  settingsNotesList.innerHTML = '<p class="export-list-empty">Loading...</p>';
+  let conversations;
+  try {
+    const res = await fetch(`/api/profiles/${currentProfile.id}/conversations`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    conversations = data.conversations || [];
+  } catch (e) {
+    settingsNotesList.innerHTML = '';
+    const err = document.createElement('p');
+    err.className = 'export-list-empty';
+    err.textContent = 'Could not load languages - check your connection.';
+    settingsNotesList.appendChild(err);
+    return;
+  }
+
+  settingsNotesList.innerHTML = '';
+  if (conversations.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'export-list-empty';
+    empty.textContent = 'No languages yet.';
+    settingsNotesList.appendChild(empty);
+    return;
+  }
+  conversations.forEach((conv) => {
+    const label = conversationLabel(conv);
+    const row = document.createElement('div');
+    row.className = 'export-row';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'export-row-label';
+    labelEl.textContent = label;
+    labelEl.title = label;
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'pill-btn';
+    viewBtn.type = 'button';
+    viewBtn.textContent = 'View';
+    viewBtn.addEventListener('click', () => {
+      closeSettingsModal();
+      openNotesModal(currentProfile.id, conv.id, label);
+    });
+
+    row.appendChild(labelEl);
+    row.appendChild(viewBtn);
+    settingsNotesList.appendChild(row);
+  });
+}
+
 function populateLearningPane() {
   const conv = currentConversation();
   const difficulty = (conv && conv.config && conv.config.difficulty) || currentProfile.default_difficulty || 'intermediate';
   settingsDifficultyToggle.querySelectorAll('.difficulty-option').forEach((btn) => {
     btn.classList.toggle('selected', btn.dataset.difficulty === difficulty);
   });
+  renderNotesLanguageList();
 }
 
 settingsDifficultyToggle.querySelectorAll('.difficulty-option').forEach((btn) => {
@@ -464,21 +522,6 @@ settingsDifficultyToggle.querySelectorAll('.difficulty-option').forEach((btn) =>
     }
     await Promise.all(requests).catch(() => {});
   });
-});
-
-// Shared by the notes modal, print, and export - all three act on
-// whichever conversation/language is currently active on the learning
-// page.
-function currentNotesLabel() {
-  const conv = currentConversation();
-  return (conv && (conv.name || conv.config?.target_language)) || currentVoiceAlias || 'This language';
-}
-
-settingsViewNotesBtn.addEventListener('click', () => {
-  if (!currentProfile || !currentConversationId) return;
-  const label = currentNotesLabel();
-  closeSettingsModal();
-  openNotesModal(currentProfile.id, currentConversationId, label);
 });
 
 // --- Data controls: open data folder ---

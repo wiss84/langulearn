@@ -1,11 +1,17 @@
+"""LanguLearn has been renamed to ThirtyTutors and moved to a new PyPI
+package. This module-level print fires for `import langulearn` too, not
+just running the `langulearn` command - see cli.py for the same message
+on that path.
 """
-LanguLearn
-==========
-A self-hosted, real-time voice AI language tutor with a 3D talking avatar,
-built on the Gemini Live API.
 
-See main.py for the FastAPI app itself, live_session.py for the Live API
-relay, and cli.py for the `langulearn` command's first-run bootstrap
-(installing webrtcvad-wheels/resemblyzer, downloading avatar/voice/photo
-assets, creating a desktop shortcut) and app launch.
-"""
+import sys
+
+print(
+    "LanguLearn has been renamed to ThirtyTutors.\n\n"
+    "This package (langulearn) is no longer maintained and will not "
+    "receive further updates.\n\n"
+    "To install the current version, run:\n"
+    "    pip install thirtytutors\n\n"
+    "GitHub: https://github.com/wiss84/thirtytutors",
+    file=sys.stderr,
+)
