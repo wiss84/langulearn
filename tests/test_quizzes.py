@@ -7,7 +7,7 @@ the SQL, so exercising it for real is the point.
 
 import pytest
 
-from langulearn import memory, quizzes
+from thirtytutors import memory, quizzes
 
 pytestmark = pytest.mark.integration
 

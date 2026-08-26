@@ -6,7 +6,7 @@ silently regress without anyone noticing until a manual test.
 
 import pytest
 
-from langulearn import desktop
+from thirtytutors import desktop
 
 pytestmark = pytest.mark.unit
 

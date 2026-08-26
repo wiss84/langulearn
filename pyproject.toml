@@ -3,9 +3,9 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "langulearn"
+name = "thirtytutors"
 dynamic = ["version"]
-description = "LanguLearn has been renamed to ThirtyTutors - see https://github.com/wiss84/thirtytutors"
+description = "A self-hosted, real-time voice AI language tutor with a 3D talking avatar, built on the Gemini Live API."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -27,13 +27,31 @@ classifiers = [
     "Framework :: FastAPI",
 ]
 
-# This is the final release of langulearn - the project has been renamed
-# to ThirtyTutors. All real dependencies have been deliberately removed
-# for this release: cli.py's main() now only prints a redirect message,
-# so nothing here needs fastapi/torch/etc. anymore, and a plain `pip
-# install langulearn` stays fast and tiny instead of pulling ~1GB of ML
-# dependencies for a package that no longer does anything.
-dependencies = []
+# webrtcvad-wheels and resemblyzer are deliberately NOT listed here - see
+# cli.py's bootstrap and requirements.txt's own comment for why they can't
+# be plain dependencies (pip has no way to substitute webrtcvad-wheels for
+# resemblyzer's own webrtcvad requirement). `thirtytutors setup` (or a plain
+# first `thirtytutors` run) installs them separately.
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "google-genai",
+    "websockets",
+    "numpy",
+    "pywebview",
+    "protobuf>=4.25.8,<7.0.0",
+    "googleapis-common-protos>=1.5.5",
+    "jinja2>=3.1.4",
+    "platformdirs",
+    "python-docx>=1.1.0",
+    "torch",
+    "librosa",
+    "scipy",
+    "rich",
+    "markdown",
+    "python-multipart",
+    "pywin32; sys_platform == 'win32'",
+]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "pytest-cov", "httpx", "httpx2", "ruff", "langfuse"]
@@ -42,28 +60,29 @@ dev = ["pytest", "pytest-asyncio", "pytest-cov", "httpx", "httpx2", "ruff", "lan
 # extra is completely unaffected.
 
 [project.urls]
-Homepage = "https://github.com/wiss84/langulearn"
-Repository = "https://github.com/wiss84/langulearn"
-Issues = "https://github.com/wiss84/langulearn/issues"
+Homepage = "https://github.com/wiss84/thirtytutors"
+Repository = "https://github.com/wiss84/thirtytutors"
+Issues = "https://github.com/wiss84/thirtytutors/issues"
 
 [project.scripts]
-langulearn = "langulearn.cli:main"
+thirtytutors = "thirtytutors.cli:main"
 
 [tool.setuptools.dynamic]
-# Single source of truth for the version is langulearn/constants.py's
+# Single source of truth for the version is thirtytutors/constants.py's
 # APP_VERSION - read directly from that attribute at build time, so
 # there's exactly one place to bump per release instead of keeping this
 # field manually in sync with a separate hardcoded string.
-version = { attr = "langulearn.constants.APP_VERSION" }
+version = { attr = "thirtytutors.constants.APP_VERSION" }
 
 [tool.setuptools.packages.find]
-include = ["langulearn*"]
+include = ["thirtytutors*"]
 
 [tool.setuptools.package-data]
-# Empty for this final stub release - no UI/static files needed for a
-# package whose only job is to print a redirect message. See the note
-# above dependencies for context.
-langulearn = []
+# Everything under thirtytutors/static/ (UI/, vendor/, pcm-processor.js, the
+# platform icons) ships with the wheel - avatar/voice/photo assets do NOT
+# live here at all (see constants.py's ASSETS_DIR and cli.py) since they're
+# ~300MB and downloaded separately on first run instead.
+thirtytutors = ["static/**/*", "releases/*.md"]
 
 # ---------------------------------------------------------------------------
 # Testing
@@ -79,10 +98,10 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["langulearn"]
+source = ["thirtytutors"]
 omit = [
-    "langulearn/scenarios/*",   # prompt text only, no logic to cover
-    "langulearn/cli.py",        # platform-specific shortcut/download code - exercised manually, not under test
+    "thirtytutors/scenarios/*",   # prompt text only, no logic to cover
+    "thirtytutors/cli.py",        # platform-specific shortcut/download code - exercised manually, not under test
 ]
 
 [tool.coverage.report]
@@ -95,7 +114,7 @@ exclude_lines = [
 [tool.ruff]
 line-length = 130
 target-version = "py311"
-exclude = ["langulearn/static"]
+exclude = ["thirtytutors/static"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

@@ -1,0 +1,52 @@
+{% extends "index.html" %}
+
+{% block title %}ThirtyTutors{% endblock %}
+
+{% block topbar_left_extra %}
+<span id="connectionDot"></span> <span class="app-name-text">ThirtyTutors</span> <span id="sessionStatusText" class="session-status"></span>
+<span id="modelDot"></span><span id="modelNameText"></span>
+{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/main.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/avatar_drawer.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/quiz_drawer.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="body">
+  {% include "pages/_quiz_drawer.html" %}
+  {% include "pages/_main.html" %}
+  {% include "pages/_avatar_drawer.html" %}
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "pages/_notes_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/state.js?v=1"></script>
+<script src="/UI/scripts/transcript.js?v=1"></script>
+<script src="/UI/scripts/notes.js?v=1"></script>
+<script src="/UI/scripts/profiles.js?v=1"></script>
+<script src="/UI/scripts/conversations.js?v=1"></script>
+<script src="/UI/scripts/audio.js?v=1"></script>
+<script src="/UI/scripts/quiz/quizRenderers.js?v=1"></script>
+<script src="/UI/scripts/quiz/quizDragDrop.js?v=1"></script>
+<script src="/UI/scripts/quiz/quizDrawer.js?v=1"></script>
+<script src="/UI/scripts/websocket.js?v=1"></script>
+<script src="/UI/scripts/init.js?v=1"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/build/three.module.js",
+    "three/addons/": "/vendor/three/jsm/",
+    "talkinghead": "/vendor/talkinghead/modules/talkinghead.mjs"
+  }
+}
+</script>
+<script type="module" src="/UI/scripts/avatarDrawer.js?v=1"></script>
+{% endblock %}

@@ -7,7 +7,7 @@ test_routes_api.py, not here.
 
 import pytest
 
-from langulearn import profiles_store
+from thirtytutors import profiles_store
 
 pytestmark = pytest.mark.integration
 

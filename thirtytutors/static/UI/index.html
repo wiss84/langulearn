@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>
+// No-FOUC theme detection: must run before base.css paints anything, so
+// this is an inline blocking script in <head>, ahead of the stylesheet
+// link - not deferred into a scripts/ file like everything else. The
+// mode itself (System/Light/Dark) is switched from the Settings modal's
+// General tab (see theme.js/settings.js) - there's no top-bar toggle
+// button anymore. 'system' is set as its own data-theme value, not
+// resolved down to 'light'/'dark' here - base.css has a dedicated block
+// for it that follows the OS preference via its own media query.
+(function () {
+  var saved = localStorage.getItem('theme');
+  var mode = (saved === 'light' || saved === 'dark' || saved === 'system') ? saved : 'light';
+  document.documentElement.setAttribute('data-theme', mode);
+})();
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% block title %}ThirtyTutors{% endblock %}</title>
+<link rel="icon" type="image/x-icon" href="/ThirtyTutors.ico" />
+<link rel="stylesheet" href="/UI/styles/base.css?v=2" />
+  <link rel="stylesheet" href="/UI/styles/topbar.css?v=4" />
+  <link rel="stylesheet" href="/UI/styles/modals.css?v=2" />
+  <link rel="stylesheet" href="/UI/styles/settings.css?v=2" />
+{% block styles %}{% endblock %}
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="topbarLeft">
+      {% block topbar_home %}<a id="homeLink" href="/landing" class="icon-btn" title="Home">🏠</a>{% endblock %}
+      <a id="profileSwitcherLink" href="/profiles" class="icon-btn" title="Switch profile">👥</a>
+      <h1 id="appTitle">{% block topbar_left_extra %}<span class="app-name-text">ThirtyTutors</span>{% endblock %}</h1>
+    </div>
+    <div id="topbarRight">
+      <div id="updateBellWrap">
+        <button id="updateBellBtn" class="icon-btn" type="button" title="Notifications">
+          🔔<span id="updateBellDot" class="update-badge-count" hidden></span>
+        </button>
+        <div id="updateBellDropdown" class="update-dropdown">
+          <div id="updateNotificationList"></div>
+          <p id="updateBellEmptyText" class="update-dropdown-message">You're all caught up - no notifications right now.</p>
+        </div>
+      </div>
+      {% block topbar_right %}{% endblock %}
+      <!-- Profile menu - two states (see profileMenu.js): no active
+           profile shows "Login" and is a plain link to /profiles (there's
+           nothing to open a dropdown onto without a profile); an active
+           profile shows its initial and opens a dropdown with Settings +
+           Switch profile. Global/unconditional (not a block) so every
+           page gets it, including ones with their own topbar_right
+           content (e.g. quiz-mode's Close button sits alongside it). -->
+      <div id="profileMenuWrap">
+        <button id="profileMenuBtn" class="settings-avatar-btn" type="button" title="Account menu">Login</button>
+        <div id="profileMenuDropdown" class="settings-dropdown">
+          <button id="profileMenuSettingsBtn" class="settings-dropdown-item" type="button">⚙️ Settings</button>
+          <button id="profileMenuSwitchBtn" class="settings-dropdown-item" type="button">🔀 Switch profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="pageBody">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+<div id="updateDetailOverlay">
+  <div id="updateDetailModal">
+    <button id="closeUpdateDetailBtn" class="icon-btn" type="button" title="Close">&#10005;</button>
+    <h3 id="updateDetailTitle">Update available</h3>
+    <p id="updateDetailMessage" class="update-dropdown-message"></p>
+    <div id="updateDetailProgressWrap" class="update-progress-wrap" hidden>
+      <div class="update-progress-track"><div id="updateDetailProgressFill" class="update-progress-fill"></div></div>
+    </div>
+    <div class="update-dropdown-actions">
+      <button id="updateDetailActionBtn" class="pill-btn update-action-btn" type="button"></button>
+      <button id="updateDetailSkipBtn" class="update-dropdown-item" type="button">Skip for now</button>
+    </div>
+    <p id="updateDetailStatus" class="update-dropdown-status"></p>
+  </div>
+</div>
+<!-- Shown automatically (no click needed) only when the avatar/voice/photo
+     bundle has never been downloaded at all - see update.js's
+     maybeStartFirstRunSetup. Not closable: the app genuinely can't do
+     anything useful yet without these files. -->
+<div id="firstRunOverlay">
+  <div id="firstRunModal">
+    <h3>Setting up ThirtyTutors</h3>
+    <p id="firstRunMessage" class="update-dropdown-message">Downloading your 3D tutor avatars and voices - this only happens once. Make sure you're connected to the internet.</p>
+    <div id="firstRunProgressWrap" class="update-progress-wrap" hidden>
+      <div class="update-progress-track"><div id="firstRunProgressFill" class="update-progress-fill"></div></div>
+    </div>
+    <p id="firstRunStatus" class="update-dropdown-status"></p>
+    <button id="firstRunRetryBtn" class="pill-btn update-action-btn" type="button" hidden>Retry</button>
+  </div>
+</div>
+{% include "pages/_settings_modal.html" %}
+{% block modals %}{% endblock %}
+<script src="/UI/scripts/theme.js?v=2"></script>
+<script src="/UI/scripts/update.js?v=3"></script>
+<script src="/UI/scripts/profileMenu.js?v=2"></script>
+<script src="/UI/scripts/statsPane.js?v=2"></script>
+<script src="/UI/scripts/settings.js?v=3"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

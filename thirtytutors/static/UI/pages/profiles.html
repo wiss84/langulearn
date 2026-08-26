@@ -1,0 +1,35 @@
+{% extends "index.html" %}
+
+{% block topbar_left_extra %}
+<span class="app-name-text">ThirtyTutors</span>
+{% endblock %}
+
+{% block title %}Your profiles - ThirtyTutors AI{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/conversations.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/profiles_page.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="profilesWrap">
+  <div id="profilesCard">
+    <h1 id="profilesTitle">Who's practicing?</h1>
+    <p id="profilesSubtitle">Pick a profile to continue, or add a new one.</p>
+    <div id="profileTiles"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+{% include "pages/_profile_detail_modal.html" %}
+{% include "pages/_notes_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/notes.js?v=1"></script>
+<script src="/UI/scripts/profileDetail.js?v=1"></script>
+<script src="/UI/scripts/profilesPage.js?v=2"></script>
+{% endblock %}

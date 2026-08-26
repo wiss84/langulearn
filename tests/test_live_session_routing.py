@@ -21,7 +21,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from langulearn import live_session, memory, quizzes
+from thirtytutors import live_session, memory, quizzes
 
 pytestmark = pytest.mark.integration
 
@@ -128,8 +128,7 @@ def _tool_call(*function_calls):
 def _quiz_payload(n_items=2):
     """Shaped like a real start_quiz tool-call payload under the current,
     normalized QUIZ_TOOL schema (tutor_tools.py) - every item carries all 8
-    fields regardless of item_type, no top-level quiz_type/intro_message
-    (both removed from the schema; see design_plans/issues_fix.md)."""
+    fields regardless of item_type."""
     return {
         "items": [
             {

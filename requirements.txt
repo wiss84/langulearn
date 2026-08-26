@@ -25,11 +25,11 @@ pywin32; sys_platform == "win32"
 
 # resemblyzer's own dependency list pulls in webrtcvad, which has no
 # prebuilt Windows wheel and fails to build without the full Visual
-# Studio C++ Build Tools. `langulearn setup` (see cli.py) installs these
+# Studio C++ Build Tools. `thirtytutors setup` (see cli.py) installs these
 # two automatically - webrtcvad-wheels installs under the same import name
 # (webrtcvad), so resemblyzer's internal import still resolves; --no-deps
 # means resemblyzer's other deps (torch/librosa/scipy/numpy) need to
 # already be present, hence them being listed explicitly above. If
-# installing by hand instead of via `langulearn setup`:
+# installing by hand instead of via `thirtytutors setup`:
 #   pip install webrtcvad-wheels
 #   pip install resemblyzer --no-deps

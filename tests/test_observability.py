@@ -14,7 +14,7 @@ a test run.
 
 import pytest
 
-from langulearn import observability
+from thirtytutors import observability
 
 
 class _FakeObservation:

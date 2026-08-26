@@ -1,0 +1,40 @@
+{% extends "index.html" %}
+
+{% block topbar_left_extra %}
+<span class="app-name-text">ThirtyTutors</span>
+{% endblock %}
+
+{% block title %}What's new - ThirtyTutors AI{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/whats_new.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="whatsNewWrap">
+  <div id="whatsNewCard">
+    <div id="whatsNewHeader">
+      <h1 id="whatsNewTitle">What's new</h1>
+      {% if versions|length > 1 %}
+      <select id="whatsNewVersionSelect">
+        {% for v in versions %}
+        <option value="{{ v }}" {% if v == shown_version %}selected{% endif %}>v{{ v }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+    </div>
+    {% if release_html %}
+    <div id="whatsNewBody">{{ release_html | safe }}</div>
+    {% else %}
+    <p id="whatsNewEmpty">No release notes found for v{{ shown_version }}.</p>
+    {% endif %}
+    <div id="whatsNewFooter">
+      <button id="whatsNewCloseBtn" class="secondary-btn" type="button">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/UI/scripts/whatsNew.js?v=1"></script>
+{% endblock %}

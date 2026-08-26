@@ -30,8 +30,8 @@ Thumbs.db
 
 # Personal
 design_plans/
-langulearn/static/UI/avatar_test/
-LanguLearn.bat
+thirtytutors/static/UI/avatar_test/
+ThirtyTutors.bat
 Test_suite.bat
 packaging/
 ThirtyTutors.spec

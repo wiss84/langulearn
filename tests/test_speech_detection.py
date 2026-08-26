@@ -8,7 +8,7 @@ substitution here.
 import numpy as np
 import pytest
 
-from langulearn.speech_detection import audio_utils, enrollment, verifier
+from thirtytutors.speech_detection import audio_utils, enrollment, verifier
 
 # --- trim_silence ---
 

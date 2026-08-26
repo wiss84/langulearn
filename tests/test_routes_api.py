@@ -13,7 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from langulearn import memory, routes_api
+from thirtytutors import memory, routes_api
 
 pytestmark = pytest.mark.integration
 

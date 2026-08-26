@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from langulearn import retry
+from thirtytutors import retry
 
 pytestmark = pytest.mark.unit
 

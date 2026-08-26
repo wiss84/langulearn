@@ -7,7 +7,7 @@ point.
 
 import pytest
 
-from langulearn import memory
+from thirtytutors import memory
 
 pytestmark = pytest.mark.integration
 

@@ -1,6 +1,6 @@
 name: CI & CD
 
-# LanguLearn's suite has no heavy
+# ThirtyTutors's suite has no heavy
 # model-download tests to separate out (speech_detection's real ML backend
 # is mocked in every test - see tests/conftest.py's fake_speaker_backend),
 # so there's just one test job.
@@ -67,7 +67,7 @@ jobs:
         run: |
           pytest tests/ \
             -x --tb=short -q \
-            --cov=langulearn \
+            --cov=thirtytutors \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml
       - name: Upload coverage
@@ -96,7 +96,7 @@ jobs:
   # "trusted publisher" flow (no API token stored as a secret). This needs a
   # one-time setup on PyPI's side first: on the project's PyPI page ->
   # Publishing -> add a trusted publisher pointing at this exact repo
-  # (wiss84/langulearn), workflow file (ci-cd.yml), and environment name
+  # (wiss84/thirtytutors), workflow file (ci-cd.yml), and environment name
   # ---------------------------------------------------------------------------
   publish:
     name: Publish to PyPI
@@ -106,7 +106,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/langulearn
+      url: https://pypi.org/p/thirtytutors
 
     permissions:
       id-token: write

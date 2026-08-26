@@ -1,6 +1,6 @@
 """Unit tests for live_session.build_config's quiz-related wiring, the
 QUIZ_TOOL schema itself, and the small pure helpers around the correct_
-answers omission fix (see design_plans/issues_fix.md). Doesn't need the
+answers omission fix. Doesn't need the
 FakeLiveSession/websocket machinery test_live_session_routing.py uses,
 since everything here is a pure function of its arguments.
 
@@ -13,9 +13,9 @@ values actually get interpolated, and the tool schema declares what it's
 supposed to.
 """
 
-from langulearn import live_session, quizzes
-from langulearn.tutor_instructions import SPACED_REPETITION_CONTEXT_TEMPLATE
-from langulearn.tutor_tools import QUIZ_TOOL
+from thirtytutors import live_session, quizzes
+from thirtytutors.tutor_instructions import SPACED_REPETITION_CONTEXT_TEMPLATE
+from thirtytutors.tutor_tools import QUIZ_TOOL
 
 
 def _minimal_profile():

@@ -1,0 +1,73 @@
+{% extends "index.html" %}
+
+{% block title %}Choose your tutor - ThirtyTutors AI{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/UI/styles/sidebar.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/modals.css?v=1" />
+<link rel="stylesheet" href="/UI/styles/avatar_select.css?v=1" />
+{% endblock %}
+
+{% block content %}
+<div id="avatarSelectApp">
+  <div id="avatarColumns">
+    <div class="tutor-column">
+      <h2 class="tutor-column-title">Female Tutors</h2>
+      <div class="tutor-grid" id="femaleGrid"></div>
+    </div>
+
+    <div class="tutor-center">
+      <h2 class="tutor-center-title">Choose Your Tutor Avatar</h2>
+      <p class="tutor-center-subtitle">Click a face to preview them live, right here.</p>
+      <div id="avatarPreviewFrame">
+        <div id="avatarPreview"></div>
+      </div>
+      <p id="avatarPreviewHint">Pick a tutor to preview them here.</p>
+      <div id="avatarVoiceMeta"></div>
+
+      <div class="tutor-center-field">
+        <label class="field-label" for="targetLanguageInput">Language you want to learn</label>
+        <input id="targetLanguageInput" type="text" class="text-input" placeholder="e.g. Spanish, Polish, Japanese..." autocomplete="off" />
+      </div>
+
+      <div class="tutor-center-field">
+        <label class="field-label" for="scenarioSelect">Type of conversation</label>
+        <select id="scenarioSelect" class="text-input"></select>
+        <p id="scenarioDescription" class="field-hint"></p>
+      </div>
+
+      <div class="tutor-center-field">
+        <label class="field-label">Difficulty</label>
+        <div id="difficultyToggle" class="difficulty-toggle">
+          <button type="button" class="difficulty-option" data-difficulty="beginner">Beginner</button>
+          <button type="button" class="difficulty-option" data-difficulty="intermediate">Intermediate</button>
+          <button type="button" class="difficulty-option" data-difficulty="advanced">Advanced</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tutor-column">
+      <h2 class="tutor-column-title">Male Tutors</h2>
+      <div class="tutor-grid" id="maleGrid"></div>
+    </div>
+  </div>
+
+  <div id="avatarSelectNav">
+    <button id="avatarBackBtn" class="secondary-btn" type="button">Back</button>
+    <button id="avatarNextBtn" class="primary-btn" type="button" disabled>Start Session</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/build/three.module.js",
+    "three/addons/": "/vendor/three/jsm/",
+    "talkinghead": "/vendor/talkinghead/modules/talkinghead.mjs"
+  }
+}
+</script>
+<script type="module" src="/UI/scripts/avatarSelect.js?v=1"></script>
+{% endblock %}
