@@ -16,8 +16,8 @@ venv/
 # Setup commands it wraps). packaging/ itself (the .spec file, the .iss
 # script, the hook) is NOT ignored.
 .venv-build/
-build/
-dist/
+/build/
+/dist/
 
 # Generated test audio output
 *.wav
